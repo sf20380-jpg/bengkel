@@ -1,8 +1,12 @@
 /**
- * app.js — State utama, Supabase + Optimistic Update, router SPA, notifikasi
+ * app.js — State utama, Supabase, router SPA, notifikasi
+ *
+ * Setiap fungsi CRUD (addProduct, updateProduct, dll) mengemaskini
+ * `state` secara serta-merta (optimistic update) supaya UI pantas,
+ * kemudian menghantar perubahan ke Supabase di belakang tabir.
+ * Jika Supabase gagal, perubahan lokal ditarik balik dan toast ralat dipaparkan.
  */
 const InventoryApp = (function () {
-  // Inisialisasi client Supabase menggunakan pemboleh ubah global
   const supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
   const DEFAULT_CATEGORIES = [
@@ -35,7 +39,7 @@ const InventoryApp = (function () {
   let currentView = 'dashboard';
   let listeners = [];
 
-  // ---------- Mapping Data: Baris Supabase (snake_case) <-> Objek Aplikasi (camelCase) ----------
+  // ---------- Mapping: baris Supabase (snake_case) <-> objek app (camelCase) ----------
 
   function rowToProduct(r) {
     return {
@@ -141,7 +145,7 @@ const InventoryApp = (function () {
     };
   }
 
-  // ---------- Memuatkan Data & Penyamaan (Sync) ----------
+  // ---------- Load / init ----------
 
   async function loadState() {
     const [productsRes, jobsRes, txRes, settingsRes] = await Promise.all([
@@ -189,9 +193,7 @@ const InventoryApp = (function () {
         workshop_address: state.settings.workshopAddress
       })
       .eq('id', 1)
-      .then(({ error }) => { 
-        if (error) console.error('Ralat sync settings:', error); 
-      });
+      .then(({ error }) => { if (error) console.error('Ralat sync settings:', error); });
     notify('sync');
   }
 
@@ -201,12 +203,7 @@ const InventoryApp = (function () {
   function getCategories() { return state.categories; }
   function getJobs() { return state.jobs; }
 
-  // ---------- Operasi CRUD: Produk (Products) ----------
-
-  function setProducts(products) {
-    state.products = products;
-    touchSync();
-  }
+  // ---------- Products ----------
 
   function addProduct(product) {
     state.products.push(product);
@@ -239,6 +236,12 @@ const InventoryApp = (function () {
     return true;
   }
 
+  // Tambahan fungsi setProducts sekiranya dipanggil oleh modul luaran
+  function setProducts(products) {
+    state.products = products;
+    touchSync();
+  }
+
   function deleteProduct(id) {
     const removed = state.products.find((p) => p.id === id);
     state.products = state.products.filter((p) => p.id !== id);
@@ -253,7 +256,7 @@ const InventoryApp = (function () {
     });
   }
 
-  // ---------- Operasi CRUD: Kerja Bengkel (Jobs) ----------
+  // ---------- Jobs ----------
 
   function addJob(job) {
     state.jobs.unshift(job);
@@ -279,7 +282,6 @@ const InventoryApp = (function () {
     merged.subtotalParts = items.reduce((s, i) => s + (i.lineTotal || 0), 0);
     merged.totalAmount = merged.subtotalParts + labor;
     merged.updatedAt = new Date().toISOString();
-    
     state.jobs[idx] = merged;
     touchSync();
     supabase.from('jobs').update(jobToRow(merged)).eq('id', id).then(({ error }) => {
@@ -293,6 +295,7 @@ const InventoryApp = (function () {
     return true;
   }
 
+  // Tambahan fungsi deleteJob sekiranya dipanggil oleh modul luaran
   function deleteJob(id) {
     const removed = state.jobs.find((j) => j.id === id);
     state.jobs = state.jobs.filter((j) => j.id !== id);
@@ -307,7 +310,15 @@ const InventoryApp = (function () {
     });
   }
 
-  // ---------- Operasi CRUD: Transaksi Kaunter (Transactions) ----------
+  function generateJobNo() {
+    const d = new Date();
+    const dateStr = d.toISOString().slice(0, 10).replace(/-/g, '');
+    const todayJobs = state.jobs.filter((j) => j.jobNo && j.jobNo.includes(dateStr));
+    const seq = String(todayJobs.length + 1).padStart(3, '0');
+    return `JOB-${dateStr}-${seq}`;
+  }
+
+  // ---------- Transactions ----------
 
   function addTransaction(tx) {
     state.transactions.unshift(tx);
@@ -323,6 +334,15 @@ const InventoryApp = (function () {
         touchSync();
       }
     });
+  }
+
+  // Tambahan fungsi receipt no sekiranya dikehendaki oleh modul jualan
+  function generateReceiptNo() {
+    const d = new Date();
+    const dateStr = d.toISOString().slice(0, 10).replace(/-/g, '');
+    const todayReceipts = new Set(state.transactions.filter((t) => t.receiptNo && t.receiptNo.includes(dateStr)).map((t) => t.receiptNo));
+    const seq = String(todayReceipts.size + 1).padStart(3, '0');
+    return `RCT-${dateStr}-${seq}`;
   }
 
   // ---------- Pengurusan Kategori (Categories) ----------
@@ -365,11 +385,7 @@ const InventoryApp = (function () {
     }
     const usage = categoryUsageCount(name);
     if (usage && !reassignTo) {
-      return {
-        ok: false,
-        msg: `Kategori ini digunakan oleh ${usage} produk. Pilih kategori gantian dahulu.`,
-        inUseCount: usage
-      };
+      return { ok: false, msg: `Kategori ini digunakan oleh ${usage} produk. Pilih kategori gantian dahulu.`, inUseCount: usage };
     }
     if (usage && reassignTo) {
       state.products.forEach((p) => {
@@ -381,49 +397,7 @@ const InventoryApp = (function () {
     return { ok: true };
   }
 
-  // ---------- Penjana Logik Utiliti (Helpers) ----------
-
-  function generateId(prefix) {
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  }
-
-  function generateSku() {
-    const num = String(state.products.length + 1).padStart(4, '0');
-    let sku = `SKU-${num}`;
-    let counter = 1;
-    while (state.products.some((p) => p.sku.toUpperCase() === sku.toUpperCase())) {
-      sku = `SKU-${String(state.products.length + counter).padStart(4, '0')}`;
-      counter++;
-    }
-    return sku;
-  }
-
-  function generateJobNo() {
-    const d = new Date();
-    const dateStr = d.toISOString().slice(0, 10).replace(/-/g, '');
-    const todayJobs = state.jobs.filter((j) => j.jobNo && j.jobNo.includes(dateStr));
-    const seq = String(todayJobs.length + 1).padStart(3, '0');
-    return `JOB-${dateStr}-${seq}`;
-  }
-
-  function generateReceiptNo() {
-    const d = new Date();
-    const dateStr = d.toISOString().slice(0, 10).replace(/-/g, '');
-    const todayReceipts = new Set(
-      state.transactions
-        .filter((t) => t.receiptNo && t.receiptNo.includes(dateStr))
-        .map((t) => t.receiptNo)
-    );
-    const seq = String(todayReceipts.size + 1).padStart(3, '0');
-    return `RCT-${dateStr}-${seq}`;
-  }
-
-  // ---------- Komponen Carian Produk Picker ----------
-
-  function isSkuUnique(sku, excludeId) {
-    const normalized = sku.trim().toUpperCase();
-    return !state.products.some((p) => p.sku.toUpperCase() === normalized && p.id !== excludeId);
-  }
+  // ---------- Picker Komponen Carian Produk Luaran ----------
 
   function pickerEscapeHtml(str) {
     const div = document.createElement('div');
@@ -488,36 +462,47 @@ const InventoryApp = (function () {
       });
     }
 
-    searchInput.addEventListener('focus', () => {
-      renderList(hiddenInput.value ? '' : searchInput.value);
-    });
-    searchInput.addEventListener('input', () => {
-      hiddenInput.value = '';
-      renderList(searchInput.value);
-    });
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') dropdown.classList.add('hidden');
-    });
+    searchInput.addEventListener('focus', () => renderList(hiddenInput.value ? '' : searchInput.value));
+    searchInput.addEventListener('input', () => { hiddenInput.value = ''; renderList(searchInput.value); });
+    searchInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') dropdown.classList.add('hidden'); });
     document.addEventListener('click', (e) => {
-      if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-        dropdown.classList.add('hidden');
-      }
+      if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.add('hidden');
     });
 
     return {
-      reset: () => {
-        hiddenInput.value = '';
-        searchInput.value = '';
-        dropdown.classList.add('hidden');
-      }
+      reset: () => { hiddenInput.value = ''; searchInput.value = ''; dropdown.classList.add('hidden'); }
     };
   }
 
-  // ---------- Pengurusan Event Listener & UI Router ----------
+  // ---------- Util ----------
+
+  function generateId(prefix) {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  function generateSku() {
+    const num = String(state.products.length + 1).padStart(4, '0');
+    let sku = `SKU-${num}`;
+    let counter = 1;
+    while (state.products.some((p) => p.sku.toUpperCase() === sku.toUpperCase())) {
+      sku = `SKU-${String(state.products.length + counter).padStart(4, '0')}`;
+      counter++;
+    }
+    return sku;
+  }
+
+  function isSkuUnique(sku, excludeId) {
+    const normalized = sku.trim().toUpperCase();
+    return !state.products.some(
+      (p) => p.sku.toUpperCase() === normalized && p.id !== excludeId
+    );
+  }
 
   function subscribe(fn) {
     listeners.push(fn);
-    return () => { listeners = listeners.filter((l) => l !== fn); };
+    return () => {
+      listeners = listeners.filter((l) => l !== fn);
+    };
   }
 
   function notify(event) {
@@ -527,12 +512,14 @@ const InventoryApp = (function () {
   function showToast(message, type) {
     const container = document.getElementById('toast-container');
     if (!container) return;
+
     const colors = {
       success: 'bg-emerald-600',
       error: 'bg-red-600',
       warning: 'bg-amber-500',
       info: 'bg-slate-700'
     };
+
     const el = document.createElement('div');
     el.className = `fade-in ${colors[type] || colors.info} text-white px-4 py-3 rounded-lg shadow-lg text-sm font-medium max-w-sm`;
     el.textContent = message;
@@ -559,7 +546,6 @@ const InventoryApp = (function () {
     });
     document.getElementById('page-title').textContent = getPageTitle(view);
 
-    // Memastikan pemanggilan modul menggunakan window.* untuk mengelakkan ralat global undefined
     switch (view) {
       case 'dashboard':
         if (window.ReportsModule) window.ReportsModule.renderDashboard();
@@ -596,6 +582,7 @@ const InventoryApp = (function () {
     document.getElementById('sidebar-overlay')?.classList.remove('hidden');
   }
 
+  // Tambah fungsi kawalan menu tepi untuk mengelakkan ralat global
   function initRouter() {
     document.querySelectorAll('[data-nav]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -606,8 +593,6 @@ const InventoryApp = (function () {
     document.getElementById('btn-menu')?.addEventListener('click', openSidebar);
     document.getElementById('sidebar-overlay')?.addEventListener('click', closeSidebar);
   }
-
-  // ---------- Penyediaan Data Contoh (Dummy Data) ----------
 
   function generateDummyData() {
     const samples = [
@@ -625,7 +610,6 @@ const InventoryApp = (function () {
 
     const now = new Date().toISOString();
     const created = [];
-    
     samples.forEach((s, i) => {
       const sku = `BM-${String(i + 1).padStart(3, '0')}`;
       if (!isSkuUnique(sku)) return;
@@ -657,7 +641,6 @@ const InventoryApp = (function () {
       ];
       const labor = 35;
       const sub = jobItems.reduce((s, i) => s + i.lineTotal, 0);
-
       addJob({
         id: generateId('job'),
         jobNo: generateJobNo(),
@@ -683,7 +666,41 @@ const InventoryApp = (function () {
     navigate(currentView);
   }
 
+  function exportInventoryCSV() {
+    const products = state.products;
+    if (!products.length) {
+      showToast('Tiada produk untuk dieksport.', 'warning');
+      return;
+    }
+
+    const headers = ['ID', 'SKU', 'Nama Produk', 'Kategori', 'Harga Kos (RM)', 'Harga Jual (RM)', 'Kuantiti', 'Min Stok', 'Nilai Kos (RM)', 'Nilai Jualan (RM)'];
+    const rows = products.map((p) => [
+      p.id,
+      p.sku,
+      `"${p.name.replace(/"/g, '""')}"`,
+      p.category,
+      p.costPrice.toFixed(2),
+      p.sellPrice.toFixed(2),
+      p.quantity,
+      p.minStock,
+      (p.costPrice * p.quantity).toFixed(2),
+      (p.sellPrice * p.quantity).toFixed(2)
+    ]);
+
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inventori_bengkel_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Fail CSV berjaya dimuat turun.', 'success');
+  }
+
   function bindGlobalActions() {
+    document.getElementById('btn-export-csv')?.addEventListener('click', exportInventoryCSV);
+
     let dummyClickCount = 0;
     document.getElementById('btn-dummy-secret')?.addEventListener('click', () => {
       dummyClickCount++;
@@ -702,28 +719,20 @@ const InventoryApp = (function () {
     });
   }
 
-  // ---------- Fungsi Permulaan (Initialization) ----------
-
   async function init() {
-    initRouter();
-    bindGlobalActions();
-    
     try {
-      // Tunggu data dimuatkan sepenuhnya dari Supabase
       await loadState();
     } catch (e) {
       console.error('Gagal memuat data dari Supabase:', e);
       showToast('Gagal sambung ke Supabase. Semak js/config.js.', 'error');
     }
-
-    // Melanggan sebarang perubahan sinkronisasi masa hadapan
+    initRouter();
+    bindGlobalActions();
     subscribe((event) => {
       if (event === 'sync' && currentView === 'dashboard' && window.ReportsModule) {
         window.ReportsModule.renderDashboard();
       }
     });
-
-    // HALAMAN UTAMA: Paparkan dashboard dan panggil fungsi render pertamanya serta-merta
     navigate('dashboard');
   }
 
@@ -751,8 +760,12 @@ const InventoryApp = (function () {
     addCategory,
     renameCategory,
     deleteCategory,
-    subscribe,
+    showToast,
     navigate,
-    showToast
+    subscribe,
+    exportInventoryCSV,
+    DEFAULT_CATEGORIES
   };
 })();
+
+document.addEventListener('DOMContentLoaded', () => InventoryApp.init());
