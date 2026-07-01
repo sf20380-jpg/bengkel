@@ -185,7 +185,7 @@ const ReportsModule = (function () {
     container.innerHTML = recent
       .map((tx) => {
         const ok = tx.status === 'Berjaya';
-        const ref = tx.jobNo ? `Kerja ${tx.jobNo}` : 'Kaunter';
+        const ref = tx.jobNo ? `Kerja ${tx.jobNo}` : (tx.receiptNo ? `Resit ${tx.receiptNo}` : 'Kaunter');
         return `
         <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
           <div>

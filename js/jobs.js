@@ -17,6 +17,7 @@ const JobsModule = (function () {
   let editingJobId = null;
   let draftItems = [];
   let filterStatus = '';
+  let jobProductPicker = null;
 
   function formatRM(value) {
     return `RM ${Number(value).toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -172,14 +173,14 @@ const JobsModule = (function () {
   }
 
   function addItemToJob() {
-    const select = document.getElementById('job-add-product');
+    const hiddenId = document.getElementById('job-add-product-id');
     const qtyInput = document.getElementById('job-add-qty');
-    if (!select || !qtyInput) return;
+    if (!hiddenId || !qtyInput) return;
 
-    const productId = select.value;
+    const productId = hiddenId.value;
     const quantity = parseInt(qtyInput.value, 10) || 1;
     if (!productId) {
-      InventoryApp.showToast('Pilih alat ganti dari inventori.', 'error');
+      InventoryApp.showToast('Cari & pilih alat ganti dari inventori.', 'error');
       return;
     }
 
@@ -202,19 +203,17 @@ const JobsModule = (function () {
     }
 
     qtyInput.value = '1';
-    select.value = '';
+    if (jobProductPicker) jobProductPicker.reset();
     renderDraftItems();
     InventoryApp.showToast(`${product.name} ditambah ke senarai kerja.`, 'success');
   }
 
-  function populateProductSelect() {
-    const select = document.getElementById('job-add-product');
-    if (!select) return;
-    const products = InventoryApp.getProducts();
-    select.innerHTML = '<option value="">-- Pilih Alat Ganti --</option>' +
-      products.map((p) =>
-        `<option value="${p.id}">${escapeHtml(p.sku)} — ${escapeHtml(p.name)} (Stok: ${p.quantity})</option>`
-      ).join('');
+  function initProductPicker() {
+    jobProductPicker = InventoryApp.initProductPicker({
+      searchInputId: 'job-product-search',
+      hiddenInputId: 'job-add-product-id',
+      dropdownId: 'job-product-dropdown'
+    });
   }
 
   function openJobModal(jobId) {
@@ -255,7 +254,7 @@ const JobsModule = (function () {
       document.getElementById('job-status').value = 'draf';
     }
 
-    populateProductSelect();
+    initProductPicker();
     renderDraftItems();
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -525,7 +524,6 @@ const JobsModule = (function () {
 
   function render() {
     renderJobsList();
-    populateProductSelect();
   }
 
   function init() {

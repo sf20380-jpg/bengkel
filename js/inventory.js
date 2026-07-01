@@ -255,6 +255,118 @@ const InventoryModule = (function () {
     }
   }
 
+  function renderCategoryList() {
+    const container = document.getElementById('category-list');
+    if (!container) return;
+
+    const categories = InventoryApp.getCategories();
+
+    container.innerHTML = categories
+      .map((c) => {
+        const count = InventoryApp.categoryUsageCount(c);
+        return `
+        <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-slate-200" data-cat-row="${escapeHtml(c)}">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-slate-700 truncate">${escapeHtml(c)}</p>
+            <p class="text-xs text-slate-400">${count} produk</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button data-rename-cat="${escapeHtml(c)}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Namakan Semula</button>
+            <button data-delete-cat="${escapeHtml(c)}" class="text-red-500 hover:text-red-700 text-xs font-medium">Padam</button>
+          </div>
+        </div>`;
+      })
+      .join('');
+
+    container.querySelectorAll('[data-rename-cat]').forEach((btn) => {
+      btn.addEventListener('click', () => handleRenameCategory(btn.dataset.renameCat));
+    });
+    container.querySelectorAll('[data-delete-cat]').forEach((btn) => {
+      btn.addEventListener('click', () => handleDeleteCategory(btn.dataset.deleteCat));
+    });
+  }
+
+  function refreshAfterCategoryChange() {
+    renderCategoryList();
+    populateFilterDropdown();
+    if (!editingId) {
+      const categorySelect = document.getElementById('product-category');
+      if (categorySelect) categorySelect.innerHTML = renderCategoryOptions('');
+    }
+    renderTable();
+    if (window.ReportsModule) ReportsModule.renderDashboard();
+    if (window.JobsModule) JobsModule.render();
+  }
+
+  function handleAddCategory(e) {
+    e.preventDefault();
+    const input = document.getElementById('new-category-input');
+    if (!input) return;
+    const result = InventoryApp.addCategory(input.value);
+    if (!result.ok) {
+      InventoryApp.showToast(result.msg, 'error');
+      return;
+    }
+    input.value = '';
+    InventoryApp.showToast('Kategori baharu ditambah.', 'success');
+    refreshAfterCategoryChange();
+  }
+
+  function handleRenameCategory(oldName) {
+    const newName = prompt('Nama baharu untuk kategori:', oldName);
+    if (newName === null) return;
+    const result = InventoryApp.renameCategory(oldName, newName);
+    if (!result.ok) {
+      InventoryApp.showToast(result.msg, 'error');
+      return;
+    }
+    InventoryApp.showToast('Kategori dinamakan semula.', 'success');
+    refreshAfterCategoryChange();
+  }
+
+  function handleDeleteCategory(name) {
+    let result = InventoryApp.deleteCategory(name);
+    if (!result.ok && result.inUseCount) {
+      const others = InventoryApp.getCategories().filter((c) => c !== name);
+      if (!others.length) {
+        InventoryApp.showToast('Tidak boleh padam kategori terakhir.', 'error');
+        return;
+      }
+      const target = prompt(
+        `${result.msg}\n\nTaip nama kategori gantian (contoh: ${others[0]}):`,
+        others[0]
+      );
+      if (target === null) return;
+      if (!others.some((c) => c.toLowerCase() === target.trim().toLowerCase())) {
+        InventoryApp.showToast('Kategori gantian tidak sah.', 'error');
+        return;
+      }
+      result = InventoryApp.deleteCategory(name, target.trim());
+    }
+    if (!result.ok) {
+      InventoryApp.showToast(result.msg, 'error');
+      return;
+    }
+    InventoryApp.showToast('Kategori dipadam.', 'success');
+    refreshAfterCategoryChange();
+  }
+
+  function openCategoryModal() {
+    const modal = document.getElementById('category-modal');
+    if (!modal) return;
+    renderCategoryList();
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closeCategoryModal() {
+    const modal = document.getElementById('category-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
   function populateFilterDropdown() {
     const select = document.getElementById('filter-category');
     if (!select) return;
@@ -273,6 +385,13 @@ const InventoryModule = (function () {
       if (e.target.id === 'product-modal') closeModal();
     });
     document.getElementById('product-form')?.addEventListener('submit', handleSubmit);
+
+    document.getElementById('btn-manage-categories')?.addEventListener('click', openCategoryModal);
+    document.getElementById('btn-close-category-modal')?.addEventListener('click', closeCategoryModal);
+    document.getElementById('category-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'category-modal') closeCategoryModal();
+    });
+    document.getElementById('category-add-form')?.addEventListener('submit', handleAddCategory);
 
     document.getElementById('search-inventory')?.addEventListener('input', (e) => {
       searchQuery = e.target.value;
