@@ -1,9 +1,9 @@
 /**
- * app.js — State utama, LocalStorage, router SPA, notifikasi
+ * app.js — State utama, Supabase + Optimistic Update, router SPA, notifikasi
  */
 const InventoryApp = (function () {
-  const STORAGE_KEY = 'bengkel_motor_inventory_v2';
-  const VERSION = 2;
+  // Inisialisasi client Supabase menggunakan pemboleh ubah global
+  const supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
   const DEFAULT_CATEGORIES = [
     'Minyak & Pelincir',
@@ -35,110 +35,368 @@ const InventoryApp = (function () {
   let currentView = 'dashboard';
   let listeners = [];
 
-  function loadState() {
-    try {
-      let raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        const legacy = localStorage.getItem('enterprise_inventory_v1');
-        if (legacy) {
-          localStorage.setItem(STORAGE_KEY, legacy);
-          raw = legacy;
-        } else {
-          persist();
-          return;
-        }
-      }
-      const parsed = JSON.parse(raw);
-      if (parsed) {
-        state.products = Array.isArray(parsed.products) ? parsed.products : [];
-        state.transactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
-        state.jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
-        state.categories = Array.isArray(parsed.categories) && parsed.categories.length
-          ? parsed.categories
-          : [...DEFAULT_CATEGORIES];
-        state.settings = { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) };
-        if (!parsed.jobs && parsed.version === 1) {
-          persist();
-        }
-      }
-    } catch (e) {
-      console.error('Gagal memuat data:', e);
-      resetState();
-    }
-  }
+  // ---------- Mapping Data: Baris Supabase (snake_case) <-> Objek Aplikasi (camelCase) ----------
 
-  function resetState() {
-    state = {
-      products: [],
-      transactions: [],
-      jobs: [],
-      categories: [...DEFAULT_CATEGORIES],
-      settings: { ...DEFAULT_SETTINGS }
+  function rowToProduct(r) {
+    return {
+      id: r.id,
+      name: r.name,
+      sku: r.sku,
+      category: r.category,
+      costPrice: Number(r.cost_price),
+      sellPrice: Number(r.sell_price),
+      quantity: Number(r.quantity),
+      minStock: Number(r.min_stock),
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
     };
   }
 
-  function persist() {
+  function productToRow(p) {
+    return {
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      category: p.category,
+      cost_price: p.costPrice,
+      sell_price: p.sellPrice,
+      quantity: p.quantity,
+      min_stock: p.minStock,
+      created_at: p.createdAt,
+      updated_at: p.updatedAt
+    };
+  }
+
+  function rowToJob(r) {
+    return {
+      id: r.id,
+      jobNo: r.job_no,
+      customerName: r.customer_name,
+      customerPhone: r.customer_phone,
+      vehicleModel: r.vehicle_model,
+      vehiclePlate: r.vehicle_plate,
+      serviceType: r.service_type,
+      description: r.description,
+      laborCharge: Number(r.labor_charge) || 0,
+      items: r.items || [],
+      subtotalParts: Number(r.subtotal_parts) || 0,
+      totalAmount: Number(r.total_amount) || 0,
+      status: r.status,
+      stockDeducted: !!r.stock_deducted,
+      createdAt: r.created_at,
+      completedAt: r.completed_at,
+      updatedAt: r.updated_at
+    };
+  }
+
+  function jobToRow(j) {
+    return {
+      id: j.id,
+      job_no: j.jobNo,
+      customer_name: j.customerName,
+      customer_phone: j.customerPhone,
+      vehicle_model: j.vehicleModel,
+      vehicle_plate: j.vehiclePlate,
+      service_type: j.serviceType,
+      description: j.description,
+      labor_charge: j.laborCharge,
+      items: j.items,
+      subtotal_parts: j.subtotalParts,
+      total_amount: j.totalAmount,
+      status: j.status,
+      stock_deducted: j.stockDeducted,
+      created_at: j.createdAt,
+      completed_at: j.completedAt,
+      updated_at: j.updatedAt
+    };
+  }
+
+  function rowToTx(r) {
+    return {
+      id: r.id,
+      date: r.date,
+      sku: r.sku,
+      productName: r.product_name,
+      quantity: Number(r.quantity),
+      totalPrice: Number(r.total_price),
+      status: r.status,
+      jobNo: r.job_no,
+      type: r.type,
+      receiptNo: r.receipt_no || null
+    };
+  }
+
+  function txToRow(t) {
+    return {
+      id: t.id,
+      date: t.date,
+      sku: t.sku,
+      product_name: t.productName,
+      quantity: t.quantity,
+      total_price: t.totalPrice,
+      status: t.status,
+      job_no: t.jobNo || null,
+      type: t.type || null,
+      receipt_no: t.receiptNo || null
+    };
+  }
+
+  // ---------- Memuatkan Data & Penyamaan (Sync) ----------
+
+  async function loadState() {
+    const [productsRes, jobsRes, txRes, settingsRes] = await Promise.all([
+      supabase.from('products').select('*').order('name'),
+      supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+      supabase.from('transactions').select('*').order('date', { ascending: false }).limit(500),
+      supabase.from('settings').select('*').eq('id', 1).maybeSingle()
+    ]);
+
+    if (productsRes.error) console.error('Ralat load products:', productsRes.error);
+    if (jobsRes.error) console.error('Ralat load jobs:', jobsRes.error);
+    if (txRes.error) console.error('Ralat load transactions:', txRes.error);
+    if (settingsRes.error) console.error('Ralat load settings:', settingsRes.error);
+
+    state.products = (productsRes.data || []).map(rowToProduct);
+    state.jobs = (jobsRes.data || []).map(rowToJob);
+    state.transactions = (txRes.data || []).map(rowToTx);
+
+    if (settingsRes.data) {
+      state.categories = settingsRes.data.categories && settingsRes.data.categories.length
+        ? settingsRes.data.categories
+        : [...DEFAULT_CATEGORIES];
+      state.settings = {
+        lastSync: settingsRes.data.last_sync,
+        workshopName: settingsRes.data.workshop_name || DEFAULT_SETTINGS.workshopName,
+        workshopPhone: settingsRes.data.workshop_phone || DEFAULT_SETTINGS.workshopPhone,
+        workshopAddress: settingsRes.data.workshop_address || DEFAULT_SETTINGS.workshopAddress
+      };
+    }
+
+    if (productsRes.error || jobsRes.error || txRes.error || settingsRes.error) {
+      showToast('Sebahagian data gagal dimuatkan dari Supabase. Semak konsol.', 'error');
+    }
+  }
+
+  function touchSync() {
     state.settings.lastSync = new Date().toISOString();
-    const payload = {
-      version: VERSION,
-      products: state.products,
-      transactions: state.transactions,
-      jobs: state.jobs,
-      categories: state.categories,
-      settings: state.settings
-    };
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-      notify('sync');
-    } catch (e) {
-      showToast('Ralat: Tidak dapat menyimpan data. Storan penuh?', 'error');
-      console.error(e);
-    }
+    supabase
+      .from('settings')
+      .update({
+        last_sync: state.settings.lastSync,
+        categories: state.categories,
+        workshop_name: state.settings.workshopName,
+        workshop_phone: state.settings.workshopPhone,
+        workshop_address: state.settings.workshopAddress
+      })
+      .eq('id', 1)
+      .then(({ error }) => { 
+        if (error) console.error('Ralat sync settings:', error); 
+      });
+    notify('sync');
   }
 
-  function getState() {
-    return state;
+  function getState() { return state; }
+  function getProducts() { return state.products; }
+  function getTransactions() { return state.transactions; }
+  function getCategories() { return state.categories; }
+  function getJobs() { return state.jobs; }
+
+  // ---------- Operasi CRUD: Produk (Products) ----------
+
+  function setProducts(products) {
+    state.products = products;
+    touchSync();
+    // Jika senarai penuh diganti, anda mungkin perlu menguruskan logik upsert pukal jika diperlukan.
   }
 
-  function getProducts() {
-    return state.products;
+  function addProduct(product) {
+    state.products.push(product);
+    touchSync();
+    supabase.from('products').insert(productToRow(product)).then(({ error }) => {
+      if (error) {
+        console.error(error);
+        state.products = state.products.filter((p) => p.id !== product.id);
+        showToast('Gagal simpan produk ke Supabase.', 'error');
+        touchSync();
+      }
+    });
   }
 
-  function getTransactions() {
-    return state.transactions;
+  function updateProduct(id, updates) {
+    const idx = state.products.findIndex((p) => p.id === id);
+    if (idx === -1) return false;
+    const previous = state.products[idx];
+    const merged = { ...previous, ...updates, updatedAt: new Date().toISOString() };
+    state.products[idx] = merged;
+    touchSync();
+    supabase.from('products').update(productToRow(merged)).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error(error);
+        state.products[idx] = previous;
+        showToast('Gagal kemas kini produk di Supabase.', 'error');
+        touchSync();
+      }
+    });
+    return true;
   }
 
-  function getCategories() {
-    return state.categories;
+  function deleteProduct(id) {
+    const removed = state.products.find((p) => p.id === id);
+    state.products = state.products.filter((p) => p.id !== id);
+    touchSync();
+    supabase.from('products').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error(error);
+        if (removed) state.products.push(removed);
+        showToast('Gagal padam produk di Supabase.', 'error');
+        touchSync();
+      }
+    });
   }
 
-  function getJobs() {
-    return state.jobs;
-  }
+  // ---------- Operasi CRUD: Kerja Bengkel (Jobs) ----------
 
   function addJob(job) {
     state.jobs.unshift(job);
     if (state.jobs.length > 300) state.jobs = state.jobs.slice(0, 300);
-    persist();
+    touchSync();
+    supabase.from('jobs').insert(jobToRow(job)).then(({ error }) => {
+      if (error) {
+        console.error(error);
+        state.jobs = state.jobs.filter((j) => j.id !== job.id);
+        showToast('Gagal simpan kerja ke Supabase.', 'error');
+        touchSync();
+      }
+    });
   }
 
   function updateJob(id, updates) {
     const idx = state.jobs.findIndex((j) => j.id === id);
     if (idx === -1) return false;
-    const merged = { ...state.jobs[idx], ...updates };
+    const previous = state.jobs[idx];
+    const merged = { ...previous, ...updates };
     const items = merged.items || [];
     const labor = Number(merged.laborCharge) || 0;
     merged.subtotalParts = items.reduce((s, i) => s + (i.lineTotal || 0), 0);
     merged.totalAmount = merged.subtotalParts + labor;
     merged.updatedAt = new Date().toISOString();
+    
     state.jobs[idx] = merged;
-    persist();
+    touchSync();
+    supabase.from('jobs').update(jobToRow(merged)).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error(error);
+        state.jobs[idx] = previous;
+        showToast('Gagal kemas kini kerja di Supabase.', 'error');
+        touchSync();
+      }
+    });
     return true;
   }
 
   function deleteJob(id) {
+    const removed = state.jobs.find((j) => j.id === id);
     state.jobs = state.jobs.filter((j) => j.id !== id);
-    persist();
+    touchSync();
+    supabase.from('jobs').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error(error);
+        if (removed) state.jobs.unshift(removed);
+        showToast('Gagal padam kerja di Supabase.', 'error');
+        touchSync();
+      }
+    });
+  }
+
+  // ---------- Operasi CRUD: Transaksi Kaunter (Transactions) ----------
+
+  function addTransaction(tx) {
+    state.transactions.unshift(tx);
+    if (state.transactions.length > 500) {
+      state.transactions = state.transactions.slice(0, 500);
+    }
+    touchSync();
+    supabase.from('transactions').insert(txToRow(tx)).then(({ error }) => {
+      if (error) {
+        console.error(error);
+        state.transactions = state.transactions.filter((t) => t.id !== tx.id);
+        showToast('Gagal simpan transaksi ke Supabase.', 'error');
+        touchSync();
+      }
+    });
+  }
+
+  // ---------- Pengurusan Kategori (Categories) ----------
+
+  function categoryUsageCount(name) {
+    return state.products.filter((p) => p.category === name).length;
+  }
+
+  function addCategory(name) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return { ok: false, msg: 'Nama kategori tidak boleh kosong.' };
+    if (state.categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      return { ok: false, msg: 'Kategori ini sudah wujud.' };
+    }
+    state.categories.push(trimmed);
+    touchSync();
+    return { ok: true };
+  }
+
+  function renameCategory(oldName, newName) {
+    const trimmed = (newName || '').trim();
+    if (!trimmed) return { ok: false, msg: 'Nama kategori tidak boleh kosong.' };
+    if (state.categories.some((c) => c.toLowerCase() === trimmed.toLowerCase() && c !== oldName)) {
+      return { ok: false, msg: 'Kategori ini sudah wujud.' };
+    }
+    const idx = state.categories.indexOf(oldName);
+    if (idx === -1) return { ok: false, msg: 'Kategori tidak dijumpai.' };
+    
+    state.categories[idx] = trimmed;
+    state.products.forEach((p) => {
+      if (p.category === oldName) p.category = trimmed;
+    });
+    touchSync();
+    return { ok: true };
+  }
+
+  function deleteCategory(name, reassignTo) {
+    if (state.categories.length <= 1) {
+      return { ok: false, msg: 'Mesti ada sekurang-kurangnya satu kategori.' };
+    }
+    const usage = categoryUsageCount(name);
+    if (usage && !reassignTo) {
+      return {
+        ok: false,
+        msg: `Kategori ini digunakan oleh ${usage} produk. Pilih kategori gantian dahulu.`,
+        inUseCount: usage
+      };
+    }
+    if (usage && reassignTo) {
+      state.products.forEach((p) => {
+        if (p.category === name) p.category = reassignTo;
+      });
+    }
+    state.categories = state.categories.filter((c) => c !== name);
+    touchSync();
+    return { ok: true };
+  }
+
+  // ---------- Penjana Logik Utiliti (Helpers) ----------
+
+  function generateId(prefix) {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  function generateSku() {
+    const num = String(state.products.length + 1).padStart(4, '0');
+    let sku = `SKU-${num}`;
+    let counter = 1;
+    while (state.products.some((p) => p.sku.toUpperCase() === sku.toUpperCase())) {
+      sku = `SKU-${String(state.products.length + counter).padStart(4, '0')}`;
+      counter++;
+    }
+    return sku;
   }
 
   function generateJobNo() {
@@ -161,50 +419,9 @@ const InventoryApp = (function () {
     return `RCT-${dateStr}-${seq}`;
   }
 
-  function setProducts(products) {
-    state.products = products;
-    persist();
-  }
-
-  function addProduct(product) {
-    state.products.push(product);
-    persist();
-  }
-
-  function updateProduct(id, updates) {
-    const idx = state.products.findIndex((p) => p.id === id);
-    if (idx === -1) return false;
-    state.products[idx] = { ...state.products[idx], ...updates, updatedAt: new Date().toISOString() };
-    persist();
-    return true;
-  }
-
-  function deleteProduct(id) {
-    state.products = state.products.filter((p) => p.id !== id);
-    persist();
-  }
-
-  function addTransaction(tx) {
-    state.transactions.unshift(tx);
-    if (state.transactions.length > 500) {
-      state.transactions = state.transactions.slice(0, 500);
-    }
-    persist();
-  }
-
-  function generateId(prefix) {
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  }
-
-  function generateSku() {
-    const num = String(state.products.length + 1).padStart(4, '0');
-    let sku = `SKU-${num}`;
-    let counter = 1;
-    while (state.products.some((p) => p.sku.toUpperCase() === sku.toUpperCase())) {
-      sku = `SKU-${String(state.products.length + counter).padStart(4, '0')}`;
-      counter++;
-    }
-    return sku;
+  function isSkuUnique(sku, excludeId) {
+    const normalized = sku.trim().toUpperCase();
+    return !state.products.some((p) => p.sku.toUpperCase() === normalized && p.id !== excludeId);
   }
 
   function pickerEscapeHtml(str) {
@@ -214,8 +431,7 @@ const InventoryApp = (function () {
   }
 
   /**
-   * initProductPicker — komponen carian produk boleh guna semula (kaunter & kerja bengkel)
-   * opts: { searchInputId, hiddenInputId, dropdownId, filterFn(product), onSelect(product) }
+   * initProductPicker — Komponen carian produk yang boleh digunakan semula (Kaunter & Kerja Bengkel)
    */
   function initProductPicker(opts) {
     const searchInput = document.getElementById(opts.searchInputId);
@@ -277,16 +493,13 @@ const InventoryApp = (function () {
     searchInput.addEventListener('focus', () => {
       renderList(hiddenInput.value ? '' : searchInput.value);
     });
-
     searchInput.addEventListener('input', () => {
       hiddenInput.value = '';
       renderList(searchInput.value);
     });
-
     searchInput.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') dropdown.classList.add('hidden');
     });
-
     document.addEventListener('click', (e) => {
       if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
         dropdown.classList.add('hidden');
@@ -302,75 +515,11 @@ const InventoryApp = (function () {
     };
   }
 
-  function isSkuUnique(sku, excludeId) {
-    const normalized = sku.trim().toUpperCase();
-    return !state.products.some(
-      (p) => p.sku.toUpperCase() === normalized && p.id !== excludeId
-    );
-  }
-
-  function categoryUsageCount(name) {
-    return state.products.filter((p) => p.category === name).length;
-  }
-
-  function addCategory(name) {
-    const trimmed = (name || '').trim();
-    if (!trimmed) return { ok: false, msg: 'Nama kategori tidak boleh kosong.' };
-    if (state.categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
-      return { ok: false, msg: 'Kategori ini sudah wujud.' };
-    }
-    state.categories.push(trimmed);
-    persist();
-    return { ok: true };
-  }
-
-  function renameCategory(oldName, newName) {
-    const trimmed = (newName || '').trim();
-    if (!trimmed) return { ok: false, msg: 'Nama kategori tidak boleh kosong.' };
-    if (
-      state.categories.some(
-        (c) => c.toLowerCase() === trimmed.toLowerCase() && c !== oldName
-      )
-    ) {
-      return { ok: false, msg: 'Kategori ini sudah wujud.' };
-    }
-    const idx = state.categories.indexOf(oldName);
-    if (idx === -1) return { ok: false, msg: 'Kategori tidak dijumpai.' };
-    state.categories[idx] = trimmed;
-    state.products.forEach((p) => {
-      if (p.category === oldName) p.category = trimmed;
-    });
-    persist();
-    return { ok: true };
-  }
-
-  function deleteCategory(name, reassignTo) {
-    if (state.categories.length <= 1) {
-      return { ok: false, msg: 'Mesti ada sekurang-kurangnya satu kategori.' };
-    }
-    const usage = categoryUsageCount(name);
-    if (usage && !reassignTo) {
-      return {
-        ok: false,
-        msg: `Kategori ini digunakan oleh ${usage} produk. Pilih kategori gantian dahulu.`,
-        inUseCount: usage
-      };
-    }
-    if (usage && reassignTo) {
-      state.products.forEach((p) => {
-        if (p.category === name) p.category = reassignTo;
-      });
-    }
-    state.categories = state.categories.filter((c) => c !== name);
-    persist();
-    return { ok: true };
-  }
+  // ---------- Pengurusan Event Listener & UI Router ----------
 
   function subscribe(fn) {
     listeners.push(fn);
-    return () => {
-      listeners = listeners.filter((l) => l !== fn);
-    };
+    return () => { listeners = listeners.filter((l) => l !== fn); };
   }
 
   function notify(event) {
@@ -380,14 +529,12 @@ const InventoryApp = (function () {
   function showToast(message, type) {
     const container = document.getElementById('toast-container');
     if (!container) return;
-
     const colors = {
       success: 'bg-emerald-600',
       error: 'bg-red-600',
       warning: 'bg-amber-500',
       info: 'bg-slate-700'
     };
-
     const el = document.createElement('div');
     el.className = `fade-in ${colors[type] || colors.info} text-white px-4 py-3 rounded-lg shadow-lg text-sm font-medium max-w-sm`;
     el.textContent = message;
@@ -416,16 +563,16 @@ const InventoryApp = (function () {
 
     switch (view) {
       case 'dashboard':
-        if (window.ReportsModule) ReportsModule.renderDashboard();
+        if (window.ReportsModule) window.ReportsModule.renderDashboard();
         break;
       case 'inventory':
-        if (window.InventoryModule) InventoryModule.render();
+        if (window.InventoryModule) window.InventoryModule.render();
         break;
       case 'transactions':
-        if (window.TransactionsModule) TransactionsModule.render();
+        if (window.TransactionsModule) window.TransactionsModule.render();
         break;
       case 'jobs':
-        if (window.JobsModule) JobsModule.render();
+        if (window.JobsModule) window.JobsModule.render();
         break;
     }
   }
@@ -461,6 +608,8 @@ const InventoryApp = (function () {
     document.getElementById('sidebar-overlay')?.addEventListener('click', closeSidebar);
   }
 
+  // ---------- Penyediaan Data Contoh (Dummy Data) ----------
+
   function generateDummyData() {
     const samples = [
       { name: 'Minyak Enjin 4T SAE 10W-40 (1L)', category: 'Minyak & Pelincir', costPrice: 18, sellPrice: 32, quantity: 24, minStock: 6 },
@@ -476,14 +625,13 @@ const InventoryApp = (function () {
     ];
 
     const now = new Date().toISOString();
-    const productIds = [];
+    const created = [];
+    
     samples.forEach((s, i) => {
       const sku = `BM-${String(i + 1).padStart(3, '0')}`;
       if (!isSkuUnique(sku)) return;
-      const id = generateId('prod');
-      productIds.push(id);
-      state.products.push({
-        id,
+      const product = {
+        id: generateId('prod'),
         name: s.name,
         sku,
         category: s.category,
@@ -493,12 +641,14 @@ const InventoryApp = (function () {
         minStock: s.minStock,
         createdAt: now,
         updatedAt: now
-      });
+      };
+      created.push(product);
+      addProduct(product);
     });
 
-    const p0 = state.products.find((p) => p.sku === 'BM-001');
-    const p1 = state.products.find((p) => p.sku === 'BM-002');
-    const p2 = state.products.find((p) => p.sku === 'BM-003');
+    const p0 = created.find((p) => p.sku === 'BM-001');
+    const p1 = created.find((p) => p.sku === 'BM-002');
+    const p2 = created.find((p) => p.sku === 'BM-003');
 
     if (p0 && p1 && p2) {
       const jobItems = [
@@ -508,7 +658,8 @@ const InventoryApp = (function () {
       ];
       const labor = 35;
       const sub = jobItems.reduce((s, i) => s + i.lineTotal, 0);
-      state.jobs.push({
+
+      addJob({
         id: generateId('job'),
         jobNo: generateJobNo(),
         customerName: 'Ahmad bin Hassan',
@@ -529,46 +680,11 @@ const InventoryApp = (function () {
       });
     }
 
-    persist();
     showToast('Data contoh bengkel motor dimasukkan!', 'success');
     navigate(currentView);
   }
 
-  function exportInventoryCSV() {
-    const products = state.products;
-    if (!products.length) {
-      showToast('Tiada produk untuk dieksport.', 'warning');
-      return;
-    }
-
-    const headers = ['ID', 'SKU', 'Nama Produk', 'Kategori', 'Harga Kos (RM)', 'Harga Jual (RM)', 'Kuantiti', 'Min Stok', 'Nilai Kos (RM)', 'Nilai Jualan (RM)'];
-    const rows = products.map((p) => [
-      p.id,
-      p.sku,
-      `"${p.name.replace(/"/g, '""')}"`,
-      p.category,
-      p.costPrice.toFixed(2),
-      p.sellPrice.toFixed(2),
-      p.quantity,
-      p.minStock,
-      (p.costPrice * p.quantity).toFixed(2),
-      (p.sellPrice * p.quantity).toFixed(2)
-    ]);
-
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `inventori_bengkel_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Fail CSV berjaya dimuat turun.', 'success');
-  }
-
   function bindGlobalActions() {
-    document.getElementById('btn-export-csv')?.addEventListener('click', exportInventoryCSV);
-
     let dummyClickCount = 0;
     document.getElementById('btn-dummy-secret')?.addEventListener('click', () => {
       dummyClickCount++;
@@ -587,13 +703,20 @@ const InventoryApp = (function () {
     });
   }
 
-  function init() {
-    loadState();
+  // ---------- Fungsi Permulaan (Initialization) ----------
+
+  async function init() {
+    try {
+      await loadState();
+    } catch (e) {
+      console.error('Gagal memuat data dari Supabase:', e);
+      showToast('Gagal sambung ke Supabase. Semak js/config.js.', 'error');
+    }
     initRouter();
     bindGlobalActions();
     subscribe((event) => {
       if (event === 'sync' && currentView === 'dashboard' && window.ReportsModule) {
-        ReportsModule.renderDashboard();
+        window.ReportsModule.renderDashboard();
       }
     });
     navigate('dashboard');
@@ -620,17 +743,11 @@ const InventoryApp = (function () {
     generateReceiptNo,
     initProductPicker,
     isSkuUnique,
-    categoryUsageCount,
     addCategory,
     renameCategory,
     deleteCategory,
-    showToast,
-    navigate,
     subscribe,
-    persist,
-    exportInventoryCSV,
-    DEFAULT_CATEGORIES
+    navigate,
+    showToast
   };
 })();
-
-document.addEventListener('DOMContentLoaded', () => InventoryApp.init());
