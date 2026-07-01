@@ -23,9 +23,9 @@ const InventoryApp = (function () {
 
   const DEFAULT_SETTINGS = {
     lastSync: null,
-    workshopName: 'Bengkel Motor Pro',
-    workshopPhone: '012-345 6789',
-    workshopAddress: 'No. 1, Jalan Kilang, 43000 Kajang, Selangor'
+    workshopName: 'Megang Motorworks',
+    workshopPhone: '016-226 0203',
+    workshopAddress: '578d, Jalan Batu Tiga Lama, Kawasan 17, 41300 Klang, Selangor'
   };
 
   let state = {
