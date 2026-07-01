@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bengkel Motor — Inventori & Invois</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+        }
+      }
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 min-h-screen">
+
+  <!-- Mobile overlay -->
+  <div id="sidebar-overlay" class="hidden fixed inset-0 bg-black/50 z-30 lg:hidden"></div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="fixed inset-y-0 left-0 w-64 bg-slate-900 text-white z-40 flex flex-col shadow-xl -translate-x-full lg:translate-x-0 transition-transform duration-200">
+    <div class="p-5 border-b border-slate-700">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center text-lg font-bold">🏍</div>
+        <div>
+          <h1 class="font-bold text-sm leading-tight">Bengkel Motor</h1>
+          <p class="text-xs text-slate-400">Inventori & Invois</p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="flex-1 p-4 space-y-1">
+      <button data-nav="dashboard" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors bg-orange-600 text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        Dashboard
+        <span id="nav-alert-badge" class="hidden ml-auto bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">0</span>
+      </button>
+      <button data-nav="inventory" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-300 hover:bg-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        Inventori Alat Ganti
+      </button>
+      <button data-nav="jobs" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-300 hover:bg-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Kerja & Invois
+      </button>
+      <button data-nav="transactions" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-300 hover:bg-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        Jualan Kaunter
+      </button>
+    </nav>
+
+    <div class="p-4 border-t border-slate-700 space-y-2">
+      <button id="btn-export-csv" class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Eksport CSV
+      </button>
+      <button id="btn-dummy-visible" class="w-full px-4 py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors">
+        Masukkan 10 Data Contoh
+      </button>
+      <p id="btn-dummy-secret" class="text-center text-[10px] text-slate-600 cursor-default select-none" title="Klik 3x untuk data contoh">v1.0 · LocalStorage</p>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="lg:ml-64 min-h-screen">
+    <!-- Header -->
+    <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200 px-4 lg:px-8 py-4 flex items-center justify-between gap-4">
+      <button id="btn-menu" type="button" class="lg:hidden p-2 rounded-lg hover:bg-slate-100 text-slate-600" aria-label="Menu">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="flex-1 min-w-0">
+        <h2 id="page-title" class="text-xl font-bold text-slate-800">Dashboard Bengkel</h2>
+        <p id="last-sync" class="text-xs text-slate-400 mt-0.5">Penyelarasan terakhir: —</p>
+      </div>
+      <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+    </header>
+
+    <div class="p-4 lg:p-8">
+
+      <!-- ========== DASHBOARD VIEW ========== -->
+      <section data-view="dashboard" class="fade-in space-y-6">
+        <div id="dashboard-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <h3 class="font-semibold text-slate-700 mb-4">Stok Alat Ganti Mengikut Kategori</h3>
+            <div class="relative h-72">
+              <canvas id="stock-chart"></canvas>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <h3 class="font-semibold text-slate-700 mb-4">Aktiviti Terkini</h3>
+            <div id="recent-activity" class="space-y-1"></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+            <h3 class="font-semibold text-red-700">Amaran Stok Kritikal</h3>
+            <span class="text-xs text-slate-400">(Kuantiti di bawah Had Minimum)</span>
+          </div>
+          <div id="critical-stock-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
+        </div>
+      </section>
+
+      <!-- ========== INVENTORY VIEW ========== -->
+      <section data-view="inventory" class="hidden fade-in space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex flex-1 gap-3">
+            <div class="relative flex-1 max-w-md">
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input id="search-inventory" type="text" placeholder="Cari minyak, brek, tayar, SKU…" class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm" />
+            </div>
+            <select id="filter-category" class="px-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white min-w-[160px]">
+              <option value="">Semua Kategori</option>
+            </select>
+          </div>
+          <button id="btn-add-product" class="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Tambah Produk
+          </button>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="font-semibold text-slate-700">Senarai Alat Ganti & Bahan</h3>
+            <span id="inventory-count" class="text-xs text-slate-400">0 produk</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+                <tr>
+                  <th data-sort="sku" class="px-4 py-3 text-left cursor-pointer hover:text-indigo-600 select-none">SKU <span class="sort-icon opacity-30">↕</span></th>
+                  <th data-sort="name" class="px-4 py-3 text-left cursor-pointer hover:text-indigo-600 select-none">Nama <span class="sort-icon">↑</span></th>
+                  <th class="px-4 py-3 text-left">Kategori</th>
+                  <th class="px-4 py-3 text-right">Harga Kos</th>
+                  <th class="px-4 py-3 text-right">Harga Jual</th>
+                  <th data-sort="quantity" class="px-4 py-3 text-right cursor-pointer hover:text-indigo-600 select-none">Kuantiti <span class="sort-icon opacity-30">↕</span></th>
+                  <th class="px-4 py-3 text-right">Min Stok</th>
+                  <th class="px-4 py-3 text-center">Tindakan</th>
+                </tr>
+              </thead>
+              <tbody id="inventory-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== JOBS & INVOICE VIEW ========== -->
+      <section data-view="jobs" class="hidden fade-in space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex gap-3 items-center">
+            <select id="filter-job-status" class="px-4 py-2.5 rounded-lg border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-orange-500 outline-none">
+              <option value="">Semua Status</option>
+              <option value="draf">Draf</option>
+              <option value="sedang_dijalankan">Sedang Dijalankan</option>
+              <option value="selesai">Selesai</option>
+              <option value="dibatalkan">Dibatalkan</option>
+            </select>
+          </div>
+          <button id="btn-new-job" class="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Kerja Baharu
+          </button>
+        </div>
+
+        <div class="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4 text-sm text-orange-800">
+          <strong>Aliran kerja:</strong> Cipta kerja → tambah alat ganti dari inventori → jana invois → bila servis siap, klik <strong>Selesai</strong> untuk tolak stok automatik.
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="font-semibold text-slate-700">Senarai Kerja Bengkel</h3>
+            <span id="jobs-count" class="text-xs text-slate-400">0 kerja</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+                <tr>
+                  <th class="px-4 py-3 text-left">No. Kerja</th>
+                  <th class="px-4 py-3 text-left">Pelanggan / Motosikal</th>
+                  <th class="px-4 py-3 text-left">Jenis Servis</th>
+                  <th class="px-4 py-3 text-center">Item</th>
+                  <th class="px-4 py-3 text-right">Jumlah</th>
+                  <th class="px-4 py-3 text-center">Status</th>
+                  <th class="px-4 py-3 text-center">Tindakan</th>
+                </tr>
+              </thead>
+              <tbody id="jobs-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== TRANSACTIONS VIEW ========== -->
+      <section data-view="transactions" class="hidden fade-in space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- POS Panel -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div class="flex items-center gap-2 mb-5">
+              <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+              </div>
+              <h3 class="font-semibold text-slate-700">Jualan Kaunter (Walk-in)</h3>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1">Pilih Produk</label>
+                <select id="pos-product" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white">
+                  <option value="">-- Pilih Produk --</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1">Kuantiti Jualan</label>
+                <input id="pos-quantity" type="number" min="1" value="1" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+              </div>
+              <div id="pos-preview" class="bg-slate-50 rounded-lg p-4 min-h-[80px]">
+                <p class="text-slate-400 text-sm">Pilih produk untuk melihat butiran.</p>
+              </div>
+              <button id="btn-confirm-sale" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Sahkan Jualan
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Stats -->
+          <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white">
+            <h3 class="font-semibold mb-4 text-slate-300 text-sm uppercase tracking-wide">Panduan Kaunter</h3>
+            <ul class="space-y-3 text-sm text-slate-300">
+              <li class="flex gap-2"><span class="text-emerald-400">1.</span> Untuk pelanggan walk-in beli alat ganti terus.</li>
+              <li class="flex gap-2"><span class="text-emerald-400">2.</span> Untuk servis motosikal, gunakan modul <strong>Kerja & Invois</strong>.</li>
+              <li class="flex gap-2"><span class="text-emerald-400">3.</span> Stok ditolak serta-merta selepas sahkan jualan.</li>
+              <li class="flex gap-2"><span class="text-red-400">!</span> Transaksi disekat jika stok tidak mencukupi.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Transaction Log -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="font-semibold text-slate-700">Log Sejarah Transaksi</h3>
+            <span id="transactions-count" class="text-xs text-slate-400">0 rekod</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+                <tr>
+                  <th class="px-4 py-3 text-left">ID Transaksi</th>
+                  <th class="px-4 py-3 text-left">Tarikh & Masa</th>
+                  <th class="px-4 py-3 text-left">Rujukan</th>
+                  <th class="px-4 py-3 text-left">SKU</th>
+                  <th class="px-4 py-3 text-left">Nama Produk</th>
+                  <th class="px-4 py-3 text-right">Kuantiti</th>
+                  <th class="px-4 py-3 text-right">Jumlah Harga</th>
+                  <th class="px-4 py-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody id="transactions-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Product Modal -->
+  <div id="product-modal" class="hidden fixed inset-0 z-50 items-center justify-center modal-backdrop bg-black/40 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg fade-in" role="dialog" aria-labelledby="modal-title">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <h3 id="modal-title" class="text-lg font-bold text-slate-800">Tambah Produk Baharu</h3>
+        <button id="btn-close-modal" type="button" class="text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="product-form" class="p-6 space-y-4">
+        <input type="hidden" id="product-id" />
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Nama Produk *</label>
+          <input id="product-name" type="text" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="cth: Minyak Enjin 10W-40 1L" />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">SKU</label>
+            <input id="product-sku" type="text" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-mono" placeholder="Auto-generate" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Kategori *</label>
+            <select id="product-category" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white"></select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Harga Kos (RM) *</label>
+            <input id="product-cost" type="number" min="0" step="0.01" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Harga Jual (RM) *</label>
+            <input id="product-sell" type="number" min="0" step="0.01" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Kuantiti Semasa *</label>
+            <input id="product-qty" type="number" min="0" step="1" required value="0" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Had Minimum Stok *</label>
+            <input id="product-min" type="number" min="0" step="1" required value="5" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          </div>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" id="btn-cancel-modal" class="flex-1 py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium transition-colors">Batal</button>
+          <button type="submit" class="flex-1 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold transition-colors">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Job Modal -->
+  <div id="job-modal" class="hidden fixed inset-0 z-50 items-center justify-center modal-backdrop bg-black/40 p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl fade-in my-8" role="dialog">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
+        <h3 id="job-modal-title" class="text-lg font-bold text-slate-800">Kerja Bengkel Baharu</h3>
+        <button id="btn-close-job-modal" type="button" class="text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="job-form" class="p-6 space-y-5">
+        <input type="hidden" id="job-id" />
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Nama Pelanggan *</label>
+            <input id="job-customer" type="text" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="cth: Ahmad bin Hassan" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">No. Telefon</label>
+            <input id="job-phone" type="tel" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="012-345 6789" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Model Motosikal *</label>
+            <input id="job-vehicle-model" type="text" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="cth: Honda Wave 125" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">No. Plat *</label>
+            <input id="job-vehicle-plate" type="text" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm font-mono uppercase" placeholder="BKA 1234" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Jenis Servis *</label>
+            <select id="job-service" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm bg-white"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Status</label>
+            <select id="job-status" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm bg-white">
+              <option value="draf">Draf</option>
+              <option value="sedang_dijalankan">Sedang Dijalankan</option>
+              <option value="dibatalkan">Dibatalkan</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Nota / Penerangan Kerja</label>
+          <textarea id="job-description" rows="2" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="cth: Servis 5000km, tukar minyak & penapis"></textarea>
+        </div>
+
+        <div class="border border-slate-200 rounded-xl overflow-hidden">
+          <div class="bg-slate-50 px-4 py-3 flex flex-col sm:flex-row sm:items-end gap-3">
+            <div class="flex-1">
+              <label class="block text-xs font-medium text-slate-500 mb-1">Tambah Alat Ganti dari Inventori</label>
+              <select id="job-add-product" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white"></select>
+            </div>
+            <div class="w-24">
+              <label class="block text-xs font-medium text-slate-500 mb-1">Qty</label>
+              <input id="job-add-qty" type="number" min="1" value="1" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+            </div>
+            <button type="button" id="btn-add-job-item" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-medium whitespace-nowrap">+ Tambah</button>
+          </div>
+          <table class="w-full text-sm">
+            <thead class="bg-orange-50 text-orange-800 text-xs uppercase">
+              <tr>
+                <th class="px-3 py-2 text-left">SKU</th>
+                <th class="px-3 py-2 text-left">Item</th>
+                <th class="px-3 py-2 text-right">Qty</th>
+                <th class="px-3 py-2 text-right">Harga</th>
+                <th class="px-3 py-2 text-right">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody id="job-items-tbody"></tbody>
+          </table>
+          <div class="px-4 py-3 bg-slate-50 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-500 mb-1">Upah Kerja (RM)</label>
+              <input id="job-labor" type="number" min="0" step="0.01" value="0" class="w-full px-4 py-2 rounded-lg border border-slate-200 text-sm" />
+            </div>
+            <div id="job-items-summary" class="flex flex-col justify-center space-y-1"></div>
+          </div>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+          <button type="button" id="btn-cancel-job-modal" class="flex-1 py-2.5 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium">Batal</button>
+          <button type="submit" class="flex-1 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold">Simpan Kerja</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Invoice Modal -->
+  <div id="invoice-modal" class="hidden fixed inset-0 z-50 items-start justify-center modal-backdrop bg-black/50 p-4 overflow-y-auto">
+    <div class="w-full max-w-4xl my-4">
+      <div class="flex justify-end gap-2 mb-3 sticky top-2 z-10">
+        <button id="btn-print-invoice" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold shadow">Cetak / PDF</button>
+        <button id="btn-close-invoice" class="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-medium shadow border">Tutup</button>
+      </div>
+      <div id="invoice-print-area" class="rounded-xl shadow-2xl overflow-hidden"></div>
+    </div>
+  </div>
+
+  <!-- Scripts: urutan penting -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/inventory.js"></script>
+  <script src="js/jobs.js"></script>
+  <script src="js/transactions.js"></script>
+  <script src="js/reports.js"></script>
+</body>
+</html>
