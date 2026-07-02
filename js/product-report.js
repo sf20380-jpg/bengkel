@@ -67,7 +67,7 @@ const ProductReportModule = (function () {
 
   async function getFilteredTransactions(rangeKey) {
     const { startIso, endIso } = getRangeIso(rangeKey);
-    return InventoryApp.queryTransactions(startIso, endIso);
+    return InventoryApp.queryTransactions(startIso, endIso, 'Berjaya');
   }
 
   function aggregateByProduct(transactions) {

@@ -274,9 +274,18 @@
 
         <!-- Transaction Log -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+          <div class="px-5 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 class="font-semibold text-slate-700">Log Sejarah Transaksi</h3>
-            <span id="transactions-count" class="text-xs text-slate-400">0 rekod</span>
+            <div class="flex items-center gap-3">
+              <select id="tx-log-range-select" class="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                <option value="this_month" selected>Bulan Ini</option>
+                <option value="last_month">Bulan Lepas</option>
+                <option value="last_3_months">3 Bulan Terakhir</option>
+                <option value="this_year">Tahun Ini</option>
+                <option value="all">Semua Masa</option>
+              </select>
+              <span id="transactions-count" class="text-xs text-slate-400 whitespace-nowrap">0 transaksi</span>
+            </div>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
@@ -294,6 +303,7 @@
               <tbody id="transactions-tbody"></tbody>
             </table>
           </div>
+          <div id="transactions-pagination" class="px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-3 text-sm"></div>
         </div>
       </section>
 

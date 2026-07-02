@@ -204,9 +204,10 @@ const InventoryApp = (function () {
   function getJobs() { return state.jobs; }
 
   // Query transaksi terus dari Supabase ikut julat tarikh (bukan bergantung pada
-  // state.transactions yang di-cap 500 rekod terkini). Guna untuk laporan supaya
-  // tepat walaupun jumlah transaksi dah beribu-ribu.
-  async function queryTransactions(startIso, endIsoExclusive) {
+  // state.transactions yang di-cap 500 rekod terkini). Guna untuk laporan & log
+  // supaya tepat walaupun jumlah transaksi dah beribu-ribu.
+  // statusFilter: hantar 'Berjaya' untuk laporan, biar kosong/null untuk log (semua status).
+  async function queryTransactions(startIso, endIsoExclusive, statusFilter) {
     const pageSize = 1000;
     let from = 0;
     let all = [];
@@ -215,17 +216,17 @@ const InventoryApp = (function () {
       let query = supabase
         .from('transactions')
         .select('*')
-        .eq('status', 'Berjaya')
         .order('date', { ascending: false })
         .range(from, from + pageSize - 1);
 
+      if (statusFilter) query = query.eq('status', statusFilter);
       if (startIso) query = query.gte('date', startIso);
       if (endIsoExclusive) query = query.lt('date', endIsoExclusive);
 
       const { data, error } = await query;
       if (error) {
         console.error('Ralat query transaksi:', error);
-        showToast('Gagal memuat data laporan dari Supabase.', 'error');
+        showToast('Gagal memuat data dari Supabase.', 'error');
         break;
       }
 

@@ -4,6 +4,11 @@
 const TransactionsModule = (function () {
   let cartItems = [];
   let picker = null;
+  let logRange = 'this_month';
+  let logPage = 1;
+  let logGroups = [];
+  let activeLogRequest = null;
+  const LOG_PAGE_SIZE = 15;
 
   function formatRM(value) {
     return `RM ${Number(value).toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -25,6 +30,39 @@ const TransactionsModule = (function () {
       minute: '2-digit',
       second: '2-digit'
     });
+  }
+
+  function getRangeBounds(rangeKey) {
+    const now = new Date();
+    let start = null;
+    let end = null;
+
+    switch (rangeKey) {
+      case 'this_month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        break;
+      case 'last_month':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'last_3_months':
+        start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        break;
+      case 'this_year':
+        start = new Date(now.getFullYear(), 0, 1);
+        end = new Date(now.getFullYear() + 1, 0, 1);
+        break;
+      default:
+        start = null;
+        end = null;
+    }
+
+    return {
+      startIso: start ? start.toISOString() : null,
+      endIso: end ? end.toISOString() : null
+    };
   }
 
   function calcCartTotal() {
@@ -193,7 +231,7 @@ const TransactionsModule = (function () {
     cartItems = [];
     renderCart();
     initPicker();
-    renderTransactionLog();
+    fetchAndRenderLog();
     openReceipt(receiptNo, soldItems, total, date);
   }
 
@@ -302,38 +340,55 @@ const TransactionsModule = (function () {
     return groups;
   }
 
-  function reprintReceipt(receiptNo) {
-    const items = InventoryApp.getTransactions()
-      .filter((t) => t.receiptNo === receiptNo)
-      .map((t) => ({
-        sku: t.sku,
-        name: t.productName,
-        quantity: t.quantity,
-        unitPrice: t.quantity ? t.totalPrice / t.quantity : t.totalPrice,
-        lineTotal: t.totalPrice
-      }));
-    if (!items.length) {
-      InventoryApp.showToast('Rekod resit tidak dijumpai.', 'error');
-      return;
-    }
+  function reprintGroupReceipt(group) {
+    const items = group.items.map((t) => ({
+      sku: t.sku,
+      name: t.productName,
+      quantity: t.quantity,
+      unitPrice: t.quantity ? t.totalPrice / t.quantity : t.totalPrice,
+      lineTotal: t.totalPrice
+    }));
     const total = items.reduce((s, i) => s + i.lineTotal, 0);
-    const dateIso = InventoryApp.getTransactions().find((t) => t.receiptNo === receiptNo)?.date || new Date().toISOString();
-    openReceipt(receiptNo, items, total, dateIso);
+    openReceipt(group.receiptNo, items, total, group.date);
   }
 
   function viewGroup(group) {
     if (group.jobNo) {
       const job = InventoryApp.getJobs().find((j) => j.jobNo === group.jobNo);
       if (!job) {
-        InventoryApp.showToast('Rekod kerja tidak dijumpai.', 'error');
+        InventoryApp.showToast('Rekod kerja tidak dijumpai (mungkin di luar senarai kerja semasa).', 'error');
         return;
       }
       if (window.JobsModule) window.JobsModule.openInvoice(job.id);
     } else if (group.receiptNo) {
-      reprintReceipt(group.receiptNo);
+      reprintGroupReceipt(group);
     } else {
       InventoryApp.showToast('Tiada rujukan untuk dipaparkan.', 'error');
     }
+  }
+
+  function showLogLoading() {
+    const tbody = document.getElementById('transactions-tbody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-12 text-center text-slate-400">Memuatkan data…</td></tr>`;
+    }
+    const pagination = document.getElementById('transactions-pagination');
+    if (pagination) pagination.innerHTML = '';
+  }
+
+  async function fetchAndRenderLog() {
+    showLogLoading();
+    const requestToken = Symbol('log-request');
+    activeLogRequest = requestToken;
+
+    const { startIso, endIso } = getRangeBounds(logRange);
+    const transactions = await InventoryApp.queryTransactions(startIso, endIso);
+
+    if (activeLogRequest !== requestToken) return; // filter dah tukar sementara fetch berjalan
+
+    logGroups = groupTransactions(transactions).sort((a, b) => new Date(b.date) - new Date(a.date));
+    logPage = 1;
+    renderTransactionLog();
   }
 
   function renderTransactionLog() {
@@ -341,22 +396,27 @@ const TransactionsModule = (function () {
     const countEl = document.getElementById('transactions-count');
     if (!tbody) return;
 
-    const transactions = InventoryApp.getTransactions();
-    const groups = groupTransactions(transactions).sort((a, b) => new Date(b.date) - new Date(a.date));
+    if (countEl) countEl.textContent = `${logGroups.length} transaksi`;
 
-    if (countEl) countEl.textContent = `${groups.length} transaksi`;
-
-    if (!groups.length) {
+    if (!logGroups.length) {
       tbody.innerHTML = `
         <tr>
           <td colspan="7" class="px-4 py-12 text-center text-slate-400">
-            Tiada transaksi direkodkan lagi.
+            Tiada transaksi dalam tempoh ini.
           </td>
         </tr>`;
+      renderLogPagination(0, 1);
       return;
     }
 
-    tbody.innerHTML = groups
+    const totalPages = Math.max(1, Math.ceil(logGroups.length / LOG_PAGE_SIZE));
+    if (logPage > totalPages) logPage = totalPages;
+    if (logPage < 1) logPage = 1;
+
+    const startIdx = (logPage - 1) * LOG_PAGE_SIZE;
+    const pageGroups = logGroups.slice(startIdx, startIdx + LOG_PAGE_SIZE);
+
+    tbody.innerHTML = pageGroups
       .map((g) => {
         const isSuccess = g.status === 'Berjaya';
         const statusClass = isSuccess
@@ -392,21 +452,61 @@ const TransactionsModule = (function () {
 
     tbody.querySelectorAll('[data-view-group]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const group = groups.find((g) => g.key === btn.dataset.viewGroup);
+        const group = logGroups.find((g) => g.key === btn.dataset.viewGroup);
         if (group) viewGroup(group);
       });
+    });
+
+    renderLogPagination(logGroups.length, totalPages);
+  }
+
+  function renderLogPagination(totalItems, totalPages) {
+    const container = document.getElementById('transactions-pagination');
+    if (!container) return;
+
+    if (!totalItems) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const startIdx = (logPage - 1) * LOG_PAGE_SIZE + 1;
+    const endIdx = Math.min(logPage * LOG_PAGE_SIZE, totalItems);
+
+    container.innerHTML = `
+      <span class="text-slate-400">Memaparkan ${startIdx}–${endIdx} daripada ${totalItems} transaksi</span>
+      <div class="flex items-center gap-2">
+        <button id="btn-log-prev" ${logPage <= 1 ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-xs font-medium">‹ Sebelum</button>
+        <span class="text-slate-500 text-xs">Muka ${logPage} / ${totalPages}</span>
+        <button id="btn-log-next" ${logPage >= totalPages ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-xs font-medium">Seterusnya ›</button>
+      </div>`;
+
+    document.getElementById('btn-log-prev')?.addEventListener('click', () => {
+      if (logPage > 1) {
+        logPage--;
+        renderTransactionLog();
+      }
+    });
+    document.getElementById('btn-log-next')?.addEventListener('click', () => {
+      if (logPage < totalPages) {
+        logPage++;
+        renderTransactionLog();
+      }
     });
   }
 
   function bindEvents() {
     document.getElementById('btn-add-pos-item')?.addEventListener('click', addCartItem);
     document.getElementById('btn-confirm-sale')?.addEventListener('click', confirmSale);
+    document.getElementById('tx-log-range-select')?.addEventListener('change', (e) => {
+      logRange = e.target.value;
+      fetchAndRenderLog();
+    });
   }
 
   function render() {
     initPicker();
     renderCart();
-    renderTransactionLog();
+    fetchAndRenderLog();
   }
 
   function init() {
