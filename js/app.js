@@ -203,6 +203,40 @@ const InventoryApp = (function () {
   function getCategories() { return state.categories; }
   function getJobs() { return state.jobs; }
 
+  // Query transaksi terus dari Supabase ikut julat tarikh (bukan bergantung pada
+  // state.transactions yang di-cap 500 rekod terkini). Guna untuk laporan supaya
+  // tepat walaupun jumlah transaksi dah beribu-ribu.
+  async function queryTransactions(startIso, endIsoExclusive) {
+    const pageSize = 1000;
+    let from = 0;
+    let all = [];
+
+    while (true) {
+      let query = supabase
+        .from('transactions')
+        .select('*')
+        .eq('status', 'Berjaya')
+        .order('date', { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (startIso) query = query.gte('date', startIso);
+      if (endIsoExclusive) query = query.lt('date', endIsoExclusive);
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Ralat query transaksi:', error);
+        showToast('Gagal memuat data laporan dari Supabase.', 'error');
+        break;
+      }
+
+      all = all.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return all.map(rowToTx);
+  }
+
   // ---------- Products ----------
 
   function addProduct(product) {
@@ -726,6 +760,7 @@ const InventoryApp = (function () {
     getTransactions,
     getJobs,
     getCategories,
+    queryTransactions,
     setProducts,
     addProduct,
     updateProduct,
