@@ -58,14 +58,7 @@
     </nav>
 
     <div class="p-4 border-t border-slate-700 space-y-2">
-      <button id="btn-export-csv" class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        Eksport CSV
-      </button>
-      <button id="btn-dummy-visible" class="w-full px-4 py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors">
-        Masukkan 10 Data Contoh
-      </button>
-      <p id="btn-dummy-secret" class="text-center text-[10px] text-slate-600 cursor-default select-none" title="Klik 3x untuk data contoh">v1.0 · LocalStorage</p>
+      <p class="text-center text-[10px] text-slate-600 select-none">v1.0 · Supabase</p>
     </div>
   </aside>
 
@@ -125,6 +118,10 @@
             </select>
           </div>
           <div class="flex gap-2">
+            <button id="btn-export-csv" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold shadow-sm transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Eksport CSV
+            </button>
             <button id="btn-manage-categories" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold shadow-sm transition-colors">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5.586a1 1 0 01.707.293l7.414 7.414a1 1 0 010 1.414l-5.586 5.586a1 1 0 01-1.414 0L6.293 10.293A1 1 0 016 9.586V4a1 1 0 011-1z"/></svg>
               Urus Kategori
@@ -280,14 +277,13 @@
             <table class="w-full text-sm">
               <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
                 <tr>
-                  <th class="px-4 py-3 text-left">ID Transaksi</th>
                   <th class="px-4 py-3 text-left">Tarikh & Masa</th>
                   <th class="px-4 py-3 text-left">Rujukan</th>
-                  <th class="px-4 py-3 text-left">SKU</th>
-                  <th class="px-4 py-3 text-left">Nama Produk</th>
-                  <th class="px-4 py-3 text-right">Kuantiti</th>
+                  <th class="px-4 py-3 text-left">Jenis</th>
+                  <th class="px-4 py-3 text-center">Item</th>
                   <th class="px-4 py-3 text-right">Jumlah Harga</th>
                   <th class="px-4 py-3 text-center">Status</th>
+                  <th class="px-4 py-3 text-center">Tindakan</th>
                 </tr>
               </thead>
               <tbody id="transactions-tbody"></tbody>

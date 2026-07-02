@@ -700,23 +700,6 @@ const InventoryApp = (function () {
 
   function bindGlobalActions() {
     document.getElementById('btn-export-csv')?.addEventListener('click', exportInventoryCSV);
-
-    let dummyClickCount = 0;
-    document.getElementById('btn-dummy-secret')?.addEventListener('click', () => {
-      dummyClickCount++;
-      if (dummyClickCount >= 3) {
-        dummyClickCount = 0;
-        if (confirm('Masukkan 10 data contoh ke sistem? Data sedia ada tidak akan dipadam.')) {
-          generateDummyData();
-        }
-      }
-    });
-
-    document.getElementById('btn-dummy-visible')?.addEventListener('click', () => {
-      if (confirm('Masukkan 10 data contoh ke sistem?')) {
-        generateDummyData();
-      }
-    });
   }
 
   async function init() {
@@ -760,6 +743,7 @@ const InventoryApp = (function () {
     addCategory,
     renameCategory,
     deleteCategory,
+    categoryUsageCount,
     showToast,
     navigate,
     subscribe,

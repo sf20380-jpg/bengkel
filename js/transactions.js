@@ -274,53 +274,128 @@ const TransactionsModule = (function () {
     });
   }
 
+  function groupTransactions(transactions) {
+    const groups = [];
+    const indexByKey = new Map();
+
+    transactions.forEach((tx) => {
+      const key = tx.receiptNo || tx.jobNo || tx.id;
+      if (!indexByKey.has(key)) {
+        const group = {
+          key,
+          date: tx.date,
+          receiptNo: tx.receiptNo || null,
+          jobNo: tx.jobNo || null,
+          type: tx.type || (tx.jobNo ? 'kerja_bengkel' : 'kaunter'),
+          status: tx.status,
+          items: []
+        };
+        indexByKey.set(key, group);
+        groups.push(group);
+      }
+      const group = indexByKey.get(key);
+      if (tx.status !== 'Berjaya') group.status = tx.status;
+      if (new Date(tx.date) < new Date(group.date)) group.date = tx.date;
+      group.items.push(tx);
+    });
+
+    return groups;
+  }
+
+  function reprintReceipt(receiptNo) {
+    const items = InventoryApp.getTransactions()
+      .filter((t) => t.receiptNo === receiptNo)
+      .map((t) => ({
+        sku: t.sku,
+        name: t.productName,
+        quantity: t.quantity,
+        unitPrice: t.quantity ? t.totalPrice / t.quantity : t.totalPrice,
+        lineTotal: t.totalPrice
+      }));
+    if (!items.length) {
+      InventoryApp.showToast('Rekod resit tidak dijumpai.', 'error');
+      return;
+    }
+    const total = items.reduce((s, i) => s + i.lineTotal, 0);
+    const dateIso = InventoryApp.getTransactions().find((t) => t.receiptNo === receiptNo)?.date || new Date().toISOString();
+    openReceipt(receiptNo, items, total, dateIso);
+  }
+
+  function viewGroup(group) {
+    if (group.jobNo) {
+      const job = InventoryApp.getJobs().find((j) => j.jobNo === group.jobNo);
+      if (!job) {
+        InventoryApp.showToast('Rekod kerja tidak dijumpai.', 'error');
+        return;
+      }
+      if (window.JobsModule) window.JobsModule.openInvoice(job.id);
+    } else if (group.receiptNo) {
+      reprintReceipt(group.receiptNo);
+    } else {
+      InventoryApp.showToast('Tiada rujukan untuk dipaparkan.', 'error');
+    }
+  }
+
   function renderTransactionLog() {
     const tbody = document.getElementById('transactions-tbody');
     const countEl = document.getElementById('transactions-count');
     if (!tbody) return;
 
     const transactions = InventoryApp.getTransactions();
-    if (countEl) countEl.textContent = `${transactions.length} rekod`;
+    const groups = groupTransactions(transactions).sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    if (!transactions.length) {
+    if (countEl) countEl.textContent = `${groups.length} transaksi`;
+
+    if (!groups.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" class="px-4 py-12 text-center text-slate-400">
+          <td colspan="7" class="px-4 py-12 text-center text-slate-400">
             Tiada transaksi direkodkan lagi.
           </td>
         </tr>`;
       return;
     }
 
-    tbody.innerHTML = transactions
-      .map((tx) => {
-        const isSuccess = tx.status === 'Berjaya';
+    tbody.innerHTML = groups
+      .map((g) => {
+        const isSuccess = g.status === 'Berjaya';
         const statusClass = isSuccess
           ? 'bg-emerald-100 text-emerald-700'
           : 'bg-red-100 text-red-700';
-        let jenis;
-        if (tx.jobNo) {
-          jenis = `<span class="text-orange-600 font-mono text-xs">${escapeHtml(tx.jobNo)}</span>`;
-        } else if (tx.receiptNo) {
-          jenis = `<span class="text-emerald-600 font-mono text-xs">${escapeHtml(tx.receiptNo)}</span>`;
-        } else {
-          jenis = '<span class="text-slate-400 text-xs">Kaunter</span>';
-        }
+        const ref = g.jobNo
+          ? `<span class="text-orange-600 font-mono text-xs">${escapeHtml(g.jobNo)}</span>`
+          : g.receiptNo
+          ? `<span class="text-emerald-600 font-mono text-xs">${escapeHtml(g.receiptNo)}</span>`
+          : '<span class="text-slate-400 text-xs">Kaunter</span>';
+        const jenisLabel = g.jobNo
+          ? '<span class="text-xs text-orange-600 font-medium">Kerja Bengkel</span>'
+          : '<span class="text-xs text-emerald-600 font-medium">Kaunter</span>';
+        const total = g.items.reduce((s, i) => s + i.totalPrice, 0);
+        const itemCount = g.items.length;
+
         return `
         <tr class="table-row-hover border-b border-slate-100">
-          <td class="px-4 py-3 font-mono text-xs text-slate-500">${escapeHtml(tx.id.slice(0, 16))}…</td>
-          <td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">${formatDateTime(tx.date)}</td>
-          <td class="px-4 py-3">${jenis}</td>
-          <td class="px-4 py-3 font-mono text-xs text-indigo-600">${escapeHtml(tx.sku)}</td>
-          <td class="px-4 py-3 text-slate-800">${escapeHtml(tx.productName)}</td>
-          <td class="px-4 py-3 text-right font-medium">${tx.quantity}</td>
-          <td class="px-4 py-3 text-right text-emerald-700 font-medium">${formatRM(tx.totalPrice)}</td>
+          <td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">${formatDateTime(g.date)}</td>
+          <td class="px-4 py-3">${ref}</td>
+          <td class="px-4 py-3">${jenisLabel}</td>
+          <td class="px-4 py-3 text-center text-sm">${itemCount} item</td>
+          <td class="px-4 py-3 text-right text-emerald-700 font-medium">${formatRM(total)}</td>
           <td class="px-4 py-3 text-center">
-            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}">${escapeHtml(tx.status)}</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}">${escapeHtml(g.status)}</span>
+          </td>
+          <td class="px-4 py-3 text-center">
+            <button data-view-group="${escapeHtml(g.key)}" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Lihat / Cetak</button>
           </td>
         </tr>`;
       })
       .join('');
+
+    tbody.querySelectorAll('[data-view-group]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const group = groups.find((g) => g.key === btn.dataset.viewGroup);
+        if (group) viewGroup(group);
+      });
+    });
   }
 
   function bindEvents() {
