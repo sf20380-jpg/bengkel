@@ -231,7 +231,7 @@ const TransactionsModule = (function () {
     cartItems = [];
     renderCart();
     initPicker();
-    fetchAndRenderLog();
+    refreshLogFromLocalState();
     openReceipt(receiptNo, soldItems, total, date);
   }
 
@@ -271,7 +271,7 @@ const TransactionsModule = (function () {
             <p class="text-xs text-slate-400 uppercase tracking-wide">Resit Jualan Kaunter</p>
             <p class="text-xl font-bold font-mono text-emerald-600">${escapeHtml(receiptNo)}</p>
             <p class="text-sm text-slate-500 mt-1">${formatDateTime(dateIso)}</p>
-            <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Selesai</span>
+            <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Berjaya</span>
           </div>
         </div>
 
@@ -295,6 +295,7 @@ const TransactionsModule = (function () {
           </tfoot>
         </table>
 
+        <p class="text-xs text-emerald-600 font-medium">✓ Stok inventori telah ditolak secara automatik</p>
         <p class="text-center text-xs text-slate-400 mt-8 border-t pt-4">Terima kasih atas pembelian anda. Semoga selamat memandu!</p>
       </div>`;
 
@@ -364,6 +365,21 @@ const TransactionsModule = (function () {
     } else {
       InventoryApp.showToast('Tiada rujukan untuk dipaparkan.', 'error');
     }
+  }
+
+  // Refresh logGroups dari state.transactions tempatan (dah ada optimistic update
+  // serta-merta lepas jualan), TANPA query balik Supabase — elak race condition
+  // yang sama macam senarai kerja (insert belum settle di server lagi bila query balik terus).
+  function refreshLogFromLocalState() {
+    const { startIso, endIso } = getRangeBounds(logRange);
+    const transactions = InventoryApp.getTransactions().filter((t) => {
+      if (startIso && new Date(t.date) < new Date(startIso)) return false;
+      if (endIso && new Date(t.date) >= new Date(endIso)) return false;
+      return true;
+    });
+    logGroups = groupTransactions(transactions).sort((a, b) => new Date(b.date) - new Date(a.date));
+    logPage = 1;
+    renderTransactionLog();
   }
 
   function showLogLoading() {

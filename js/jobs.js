@@ -97,6 +97,22 @@ const JobsModule = (function () {
     };
   }
 
+  // Refresh jobsCache dari state.jobs tempatan (yang dah ada optimistic update
+  // serta-merta lepas tambah/edit/padam), TANPA query balik Supabase. Ni elak race
+  // condition — kalau kita query balik terus lepas insert, insert tu mungkin belum
+  // settle di server lagi, jadi job baru "hilang" sekejap sampai refresh manual.
+  function refreshJobsCacheFromLocalState() {
+    const { startIso, endIso } = getRangeBounds(jobRange);
+    let jobs = InventoryApp.getJobs().filter((j) => {
+      if (startIso && new Date(j.createdAt) < new Date(startIso)) return false;
+      if (endIso && new Date(j.createdAt) >= new Date(endIso)) return false;
+      return true;
+    });
+    jobsCache = jobs;
+    currentPage = 1;
+    renderJobsList();
+  }
+
   function showJobsLoading() {
     const tbody = document.getElementById('jobs-tbody');
     if (tbody) {
@@ -422,7 +438,7 @@ const JobsModule = (function () {
     }
 
     closeJobModal();
-    render();
+    refreshJobsCacheFromLocalState();
   }
 
   function completeJob(jobId) {
@@ -481,7 +497,7 @@ const JobsModule = (function () {
     });
 
     InventoryApp.showToast(`Kerja ${job.jobNo} selesai. Stok inventori dikemas kini.`, 'success');
-    render();
+    refreshJobsCacheFromLocalState();
   }
 
   function deleteJob(jobId) {
@@ -490,7 +506,7 @@ const JobsModule = (function () {
     if (confirm(`Padam kerja ${job.jobNo}?`)) {
       InventoryApp.deleteJob(jobId);
       InventoryApp.showToast('Kerja dipadam.', 'success');
-      render();
+      refreshJobsCacheFromLocalState();
     }
   }
 
