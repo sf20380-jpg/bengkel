@@ -18,6 +18,8 @@ const JobsModule = (function () {
   let draftItems = [];
   let filterStatus = '';
   let jobProductPicker = null;
+  let currentPage = 1;
+  const PAGE_SIZE = 15;
 
   function formatRM(value) {
     return `RM ${Number(value).toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -73,10 +75,18 @@ const JobsModule = (function () {
 
     if (!jobs.length) {
       tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-12 text-center text-slate-400">Tiada rekod kerja. Klik "Kerja Baharu" untuk mula.</td></tr>`;
+      renderJobsPagination(0, 1);
       return;
     }
 
-    tbody.innerHTML = jobs.map((j) => `
+    const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const pageJobs = jobs.slice(startIdx, startIdx + PAGE_SIZE);
+
+    tbody.innerHTML = pageJobs.map((j) => `
       <tr class="table-row-hover border-b border-slate-100">
         <td class="px-4 py-3 font-mono text-xs font-semibold text-orange-600">${escapeHtml(j.jobNo)}</td>
         <td class="px-4 py-3">
@@ -109,6 +119,42 @@ const JobsModule = (function () {
     tbody.querySelectorAll('[data-delete-job]').forEach((b) =>
       b.addEventListener('click', () => deleteJob(b.dataset.deleteJob))
     );
+
+    renderJobsPagination(jobs.length, totalPages);
+  }
+
+  function renderJobsPagination(totalItems, totalPages) {
+    const container = document.getElementById('jobs-pagination');
+    if (!container) return;
+
+    if (!totalItems) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const startIdx = (currentPage - 1) * PAGE_SIZE + 1;
+    const endIdx = Math.min(currentPage * PAGE_SIZE, totalItems);
+
+    container.innerHTML = `
+      <span class="text-slate-400">Memaparkan ${startIdx}–${endIdx} daripada ${totalItems} kerja</span>
+      <div class="flex items-center gap-2">
+        <button id="btn-jobs-prev" ${currentPage <= 1 ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-xs font-medium">‹ Sebelum</button>
+        <span class="text-slate-500 text-xs">Muka ${currentPage} / ${totalPages}</span>
+        <button id="btn-jobs-next" ${currentPage >= totalPages ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-xs font-medium">Seterusnya ›</button>
+      </div>`;
+
+    document.getElementById('btn-jobs-prev')?.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderJobsList();
+      }
+    });
+    document.getElementById('btn-jobs-next')?.addEventListener('click', () => {
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderJobsList();
+      }
+    });
   }
 
   function renderDraftItems() {
@@ -513,6 +559,7 @@ const JobsModule = (function () {
     document.getElementById('job-labor')?.addEventListener('input', renderDraftItems);
     document.getElementById('filter-job-status')?.addEventListener('change', (e) => {
       filterStatus = e.target.value;
+      currentPage = 1;
       renderJobsList();
     });
     document.getElementById('btn-close-invoice')?.addEventListener('click', closeInvoiceModal);
