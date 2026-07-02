@@ -271,7 +271,7 @@ const TransactionsModule = (function () {
             <p class="text-xs text-slate-400 uppercase tracking-wide">Resit Jualan Kaunter</p>
             <p class="text-xl font-bold font-mono text-emerald-600">${escapeHtml(receiptNo)}</p>
             <p class="text-sm text-slate-500 mt-1">${formatDateTime(dateIso)}</p>
-            <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Berjaya</span>
+            <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Selesai</span>
           </div>
         </div>
 
