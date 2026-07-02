@@ -295,7 +295,6 @@ const TransactionsModule = (function () {
           </tfoot>
         </table>
 
-        {/*<p class="text-xs text-emerald-600 font-medium">✓ Stok inventori telah ditolak secara automatik</p> */}
         <p class="text-center text-xs text-slate-400 mt-8 border-t pt-4">Terima kasih atas pembelian anda. Semoga selamat memandu!</p>
       </div>`;
 
