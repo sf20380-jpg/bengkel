@@ -234,13 +234,13 @@
               <div class="border border-slate-200 rounded-xl">
                 <div class="bg-slate-50 px-4 py-3 rounded-t-xl flex flex-col sm:flex-row sm:items-end gap-3">
                   <div class="flex-1 relative">
-                    <label class="block text-xs font-medium text-slate-500 mb-1">Cari & Pilih Produk</label>
+                    <label for="pos-product-search" class="block text-xs font-medium text-slate-500 mb-1">Cari & Pilih Produk</label>
                     <input id="pos-product-search" type="text" autocomplete="off" placeholder="Taip nama atau SKU…" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
                     <input type="hidden" id="pos-product-id" />
                     <div id="pos-product-dropdown" class="hidden absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto"></div>
                   </div>
                   <div class="w-24">
-                    <label class="block text-xs font-medium text-slate-500 mb-1">Qty</label>
+                    <label for="pos-add-qty" class="block text-xs font-medium text-slate-500 mb-1">Qty</label>
                     <input id="pos-add-qty" type="number" min="1" value="1" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
                   </div>
                   <button type="button" id="btn-add-pos-item" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-medium whitespace-nowrap">+ Tambah</button>
@@ -331,36 +331,36 @@
       <form id="product-form" class="p-6 space-y-4">
         <input type="hidden" id="product-id" />
         <div>
-          <label class="block text-xs font-medium text-slate-500 mb-1">Nama Produk *</label>
+          <label for="product-name" class="block text-xs font-medium text-slate-500 mb-1">Nama Produk *</label>
           <input id="product-name" type="text" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="cth: Minyak Enjin 10W-40 1L" />
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">SKU</label>
+            <label for="product-sku" class="block text-xs font-medium text-slate-500 mb-1">SKU</label>
             <input id="product-sku" type="text" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-mono" placeholder="Auto-generate" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Kategori *</label>
+            <label for="product-category" class="block text-xs font-medium text-slate-500 mb-1">Kategori *</label>
             <select id="product-category" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white"></select>
           </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Harga Kos (RM) *</label>
+            <label for="product-cost" class="block text-xs font-medium text-slate-500 mb-1">Harga Kos (RM) *</label>
             <input id="product-cost" type="number" min="0" step="0.01" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Harga Jual (RM) *</label>
+            <label for="product-sell" class="block text-xs font-medium text-slate-500 mb-1">Harga Jual (RM) *</label>
             <input id="product-sell" type="number" min="0" step="0.01" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Kuantiti Semasa *</label>
+            <label for="product-qty" class="block text-xs font-medium text-slate-500 mb-1">Kuantiti Semasa *</label>
             <input id="product-qty" type="number" min="0" step="1" required value="0" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Had Minimum Stok *</label>
+            <label for="product-min" class="block text-xs font-medium text-slate-500 mb-1">Had Minimum Stok *</label>
             <input id="product-min" type="number" min="0" step="1" required value="5" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
         </div>
@@ -404,27 +404,27 @@
         <input type="hidden" id="job-id" />
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Nama Pelanggan *</label>
+            <label for="job-customer" class="block text-xs font-medium text-slate-500 mb-1">Nama Pelanggan *</label>
             <input id="job-customer" type="text" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="cth: Ahmad bin Hassan" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">No. Telefon</label>
+            <label for="job-phone" class="block text-xs font-medium text-slate-500 mb-1">No. Telefon</label>
             <input id="job-phone" type="tel" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="012-345 6789" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Model Motosikal *</label>
+            <label for="job-vehicle-model" class="block text-xs font-medium text-slate-500 mb-1">Model Motosikal *</label>
             <input id="job-vehicle-model" type="text" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="cth: Honda Wave 125" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">No. Plat *</label>
+            <label for="job-vehicle-plate" class="block text-xs font-medium text-slate-500 mb-1">No. Plat *</label>
             <input id="job-vehicle-plate" type="text" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm font-mono uppercase" placeholder="BKA 1234" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Jenis Servis *</label>
+            <label for="job-service" class="block text-xs font-medium text-slate-500 mb-1">Jenis Servis *</label>
             <select id="job-service" required class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm bg-white"></select>
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">Status</label>
+            <label for="job-status" class="block text-xs font-medium text-slate-500 mb-1">Status</label>
             <select id="job-status" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm bg-white">
               <option value="draf">Draf</option>
               <option value="sedang_dijalankan">Sedang Dijalankan</option>
@@ -433,20 +433,20 @@
           </div>
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-500 mb-1">Nota / Penerangan Kerja</label>
+          <label for="job-description" class="block text-xs font-medium text-slate-500 mb-1">Nota / Penerangan Kerja</label>
           <textarea id="job-description" rows="2" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="cth: Servis 5000km, tukar minyak & penapis"></textarea>
         </div>
 
         <div class="border border-slate-200 rounded-xl">
           <div class="bg-slate-50 px-4 py-3 rounded-t-xl flex flex-col sm:flex-row sm:items-end gap-3">
             <div class="flex-1 relative">
-              <label class="block text-xs font-medium text-slate-500 mb-1">Cari Alat Ganti dari Inventori</label>
+              <label for="job-product-search" class="block text-xs font-medium text-slate-500 mb-1">Cari Alat Ganti dari Inventori</label>
               <input id="job-product-search" type="text" autocomplete="off" placeholder="Taip nama atau SKU…" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-orange-500 outline-none" />
               <input type="hidden" id="job-add-product-id" />
               <div id="job-product-dropdown" class="hidden absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto"></div>
             </div>
             <div class="w-24">
-              <label class="block text-xs font-medium text-slate-500 mb-1">Qty</label>
+              <label for="job-add-qty" class="block text-xs font-medium text-slate-500 mb-1">Qty</label>
               <input id="job-add-qty" type="number" min="1" value="1" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
             </div>
             <button type="button" id="btn-add-job-item" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-medium whitespace-nowrap">+ Tambah</button>
@@ -466,7 +466,7 @@
             </table>
             <div class="px-4 py-3 bg-slate-50 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs font-medium text-slate-500 mb-1">Upah Kerja (RM)</label>
+                <label for="job-labor" class="block text-xs font-medium text-slate-500 mb-1">Upah Kerja (RM)</label>
                 <input id="job-labor" type="number" min="0" step="0.01" value="0" class="w-full px-4 py-2 rounded-lg border border-slate-200 text-sm" />
               </div>
               <div id="job-items-summary" class="flex flex-col justify-center space-y-1"></div>
