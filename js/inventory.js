@@ -7,6 +7,8 @@ const InventoryModule = (function () {
   let searchQuery = '';
   let filterCategory = '';
   let editingId = null;
+  let currentPage = 1;
+  const PAGE_SIZE = 20;
 
   function formatRM(value) {
     return `RM ${Number(value).toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -73,18 +75,26 @@ const InventoryModule = (function () {
     const countEl = document.getElementById('inventory-count');
     if (!tbody) return;
 
-    const products = getFilteredProducts();
-    if (countEl) countEl.textContent = `${products.length} produk`;
+    const allFiltered = getFilteredProducts();
+    if (countEl) countEl.textContent = `${allFiltered.length} produk`;
 
-    if (!products.length) {
+    if (!allFiltered.length) {
       tbody.innerHTML = `
         <tr>
           <td colspan="8" class="px-4 py-12 text-center text-slate-400">
             Tiada produk dijumpai. Tambah produk baharu atau gunakan data contoh.
           </td>
         </tr>`;
+      renderPagination(0);
       return;
     }
+
+    const totalPages = Math.max(1, Math.ceil(allFiltered.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const products = allFiltered.slice(startIdx, startIdx + PAGE_SIZE);
 
     tbody.innerHTML = products
       .map((p) => {
@@ -113,6 +123,42 @@ const InventoryModule = (function () {
     });
     tbody.querySelectorAll('[data-delete]').forEach((btn) => {
       btn.addEventListener('click', () => confirmDelete(btn.dataset.delete));
+    });
+
+    renderPagination(allFiltered.length, totalPages);
+  }
+
+  function renderPagination(totalItems, totalPages) {
+    const container = document.getElementById('inventory-pagination');
+    if (!container) return;
+
+    if (!totalItems) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const startIdx = (currentPage - 1) * PAGE_SIZE + 1;
+    const endIdx = Math.min(currentPage * PAGE_SIZE, totalItems);
+
+    container.innerHTML = `
+      <span class="text-slate-400">Memaparkan ${startIdx}–${endIdx} daripada ${totalItems} produk</span>
+      <div class="flex items-center gap-2">
+        <button id="btn-inv-prev" ${currentPage <= 1 ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-xs font-medium">‹ Sebelum</button>
+        <span class="text-slate-500 text-xs">Muka ${currentPage} / ${totalPages}</span>
+        <button id="btn-inv-next" ${currentPage >= totalPages ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-xs font-medium">Seterusnya ›</button>
+      </div>`;
+
+    document.getElementById('btn-inv-prev')?.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderTable();
+      }
+    });
+    document.getElementById('btn-inv-next')?.addEventListener('click', () => {
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderTable();
+      }
     });
   }
 
@@ -395,11 +441,13 @@ const InventoryModule = (function () {
 
     document.getElementById('search-inventory')?.addEventListener('input', (e) => {
       searchQuery = e.target.value;
+      currentPage = 1;
       renderTable();
     });
 
     document.getElementById('filter-category')?.addEventListener('change', (e) => {
       filterCategory = e.target.value;
+      currentPage = 1;
       renderTable();
     });
 
@@ -412,6 +460,7 @@ const InventoryModule = (function () {
           sortField = field;
           sortDir = 'asc';
         }
+        currentPage = 1;
         updateSortIndicators();
         renderTable();
       });
