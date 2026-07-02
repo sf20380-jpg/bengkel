@@ -148,9 +148,11 @@ const InventoryApp = (function () {
   // ---------- Load / init ----------
 
   async function loadState() {
+    const threeMonthsAgoIso = new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString();
+
     const [productsRes, jobsRes, txRes, settingsRes] = await Promise.all([
       supabase.from('products').select('*').order('name'),
-      supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+      supabase.from('jobs').select('*').gte('created_at', threeMonthsAgoIso).order('created_at', { ascending: false }),
       supabase.from('transactions').select('*').order('date', { ascending: false }).limit(500),
       supabase.from('settings').select('*').eq('id', 1).maybeSingle()
     ]);
@@ -236,6 +238,50 @@ const InventoryApp = (function () {
     }
 
     return all.map(rowToTx);
+  }
+
+  // Query kerja terus dari Supabase ikut julat tarikh (created_at), dengan pagination.
+  // Guna untuk paparan Senarai Kerja Bengkel supaya app tak perlu muatkan SEMUA job
+  // sekaligus bila jumlahnya dah banyak.
+  async function queryJobs(startIso, endIsoExclusive) {
+    const pageSize = 1000;
+    let from = 0;
+    let all = [];
+
+    while (true) {
+      let query = supabase
+        .from('jobs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (startIso) query = query.gte('created_at', startIso);
+      if (endIsoExclusive) query = query.lt('created_at', endIsoExclusive);
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Ralat query kerja:', error);
+        showToast('Gagal memuat data kerja dari Supabase.', 'error');
+        break;
+      }
+
+      all = all.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return all.map(rowToJob);
+  }
+
+  // Upsert job yang di-fetch (contoh dari queryJobs) ke dalam state.jobs supaya
+  // fungsi CRUD sedia ada (edit/selesai/padam yang cari job ikut id dalam state.jobs)
+  // terus berfungsi untuk mana-mana job yang pernah dipaparkan, tanpa duplikasi.
+  function mergeJobs(jobs) {
+    jobs.forEach((job) => {
+      const idx = state.jobs.findIndex((j) => j.id === job.id);
+      if (idx === -1) state.jobs.push(job);
+      else state.jobs[idx] = job;
+    });
   }
 
   // ---------- Products ----------
@@ -762,6 +808,8 @@ const InventoryApp = (function () {
     getJobs,
     getCategories,
     queryTransactions,
+    queryJobs,
+    mergeJobs,
     setProducts,
     addProduct,
     updateProduct,

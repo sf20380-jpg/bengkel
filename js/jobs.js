@@ -20,6 +20,9 @@ const JobsModule = (function () {
   let jobProductPicker = null;
   let currentPage = 1;
   const PAGE_SIZE = 15;
+  let jobRange = 'last_3_months';
+  let jobsCache = [];
+  let activeJobsRequest = null;
 
   function formatRM(value) {
     return `RM ${Number(value).toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -61,12 +64,70 @@ const JobsModule = (function () {
     return { subtotalParts, laborCharge: labor, totalAmount: subtotalParts + labor };
   }
 
+  function getRangeBounds(rangeKey) {
+    const now = new Date();
+    let start = null;
+    let end = null;
+
+    switch (rangeKey) {
+      case 'this_month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        break;
+      case 'last_month':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'last_3_months':
+        start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        break;
+      case 'this_year':
+        start = new Date(now.getFullYear(), 0, 1);
+        end = new Date(now.getFullYear() + 1, 0, 1);
+        break;
+      default:
+        start = null;
+        end = null;
+    }
+
+    return {
+      startIso: start ? start.toISOString() : null,
+      endIso: end ? end.toISOString() : null
+    };
+  }
+
+  function showJobsLoading() {
+    const tbody = document.getElementById('jobs-tbody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-12 text-center text-slate-400">Memuatkan data…</td></tr>`;
+    }
+    const pagination = document.getElementById('jobs-pagination');
+    if (pagination) pagination.innerHTML = '';
+  }
+
+  async function fetchAndRenderJobs() {
+    showJobsLoading();
+    const requestToken = Symbol('jobs-request');
+    activeJobsRequest = requestToken;
+
+    const { startIso, endIso } = getRangeBounds(jobRange);
+    const jobs = await InventoryApp.queryJobs(startIso, endIso);
+
+    if (activeJobsRequest !== requestToken) return; // filter dah tukar sementara fetch berjalan
+
+    InventoryApp.mergeJobs(jobs); // supaya edit/selesai/padam kekal berfungsi untuk job yang dipaparkan
+    jobsCache = jobs;
+    currentPage = 1;
+    renderJobsList();
+  }
+
   function renderJobsList() {
     const tbody = document.getElementById('jobs-tbody');
     const countEl = document.getElementById('jobs-count');
     if (!tbody) return;
 
-    let jobs = [...InventoryApp.getJobs()];
+    let jobs = [...jobsCache];
     if (filterStatus) jobs = jobs.filter((j) => j.status === filterStatus);
 
     jobs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -562,6 +623,10 @@ const JobsModule = (function () {
       currentPage = 1;
       renderJobsList();
     });
+    document.getElementById('filter-job-range')?.addEventListener('change', (e) => {
+      jobRange = e.target.value;
+      fetchAndRenderJobs();
+    });
     document.getElementById('btn-close-invoice')?.addEventListener('click', closeInvoiceModal);
     document.getElementById('btn-print-invoice')?.addEventListener('click', printInvoice);
     document.getElementById('invoice-modal')?.addEventListener('click', (e) => {
@@ -570,7 +635,7 @@ const JobsModule = (function () {
   }
 
   function render() {
-    renderJobsList();
+    fetchAndRenderJobs();
   }
 
   function init() {
